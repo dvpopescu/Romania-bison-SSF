@@ -1,0 +1,673 @@
+---
+title: "initial models"
+author: "Lucy Holland"
+date: "2023-10-12"
+output: html_document
+---
+```{r}
+library(dplyr)
+library(purrr)
+library(sf)
+library(amt)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#Predictor variables MWA_urban_2000_scaled now removed as had no significance in the 2000 model 9see predictor_variables script)
+#distance_to_roads_scaled
+#distance_to_forest_edge_scaled
+#distance_to_riparian_scaled
+#distance_to_release_sites_scaled
+#NDVI_aug_2020_scaled
+#NDVI_march_2021_scaled
+#NDWI_aug_2020_scaled
+#NDWI_march_2021_scaled
+#elevation_scaled
+#broadleaf_forest_scaled
+#TRI_50_scaled
+#MWA_broad_2000_scaled
+#MWA_mixed_2000_scaled
+#MWA_ngrass_2000_scaled
+#MWA_hmgrass_2000_scaled
+#MWA_transitional_2000_scaled
+#MWA_aspect_2000_scaled
+#MWA_slope_500_scaled
+```
+Main dataset cleaning 
+```{r}
+View(filtered_data)
+unique(filtered_data$Animal)
+#Adding a column to label GPS points 1 year after enclosure release pre and all points beyond a year post 
+date_ranges <- data.frame(
+  Animal = c("R012", "PU…", "Damine","Quinn","Enlucy","Envis","Donabella","Lika","Bowie"),
+  start_date = as.Date(c("2021-08-18", "2020-04-22", "2021-08-18","2021-12-06", "2022-06-30","2021-08-18", "2021-08-18", "2021-08-18","2022-08-05")),
+  end_date = as.Date(c("2022-08-18", "2021-04-22", "2022-08-18","2022-12-06", "2023-06-30","2022-08-18", "2022-08-18","2022-08-18" ,"2023-08-05"))
+)
+#View(date_ranges)
+# Create a new column '1 Year' based on the date ranges for each animal
+filtered_data <- filtered_data %>%
+  left_join(date_ranges, by = "Animal") %>%
+  mutate(one_year = ifelse(t >= start_date & t <= end_date, "pre", "post"))
+View(filtered_data)
+#Counting pre and post values 
+label_counts <- table(filtered_data$one_year)
+pre_count <- label_counts['pre']
+post_count <- label_counts['post']
+
+# Print the counts
+cat("Count of 'pre' labels: ", pre_count, "\n") #13796 
+cat("Count of 'post' labels: ", post_count, "\n") #3826
+#Export this new df
+write.csv(filtered_data, "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Enclosure filtered/filtered_data.csv", row.names = FALSE)
+```
+Check the temperature column (for Question 3)
+```{r}
+boxplot(filtered_data$Temp..C., main = "Boxplot of temperature")
+```
+SSF model subsets
+Tracks
+```{r}
+library(purrr)
+library(sf)
+library(dplyr)
+#import new filtered_data with utm longitude and latitude
+filtered_data <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Enclosure filtered/filtered_data.csv")
+#Change the class of the timestamp
+filtered_data$t <- as.POSIXct(filtered_data$t, format = "%Y-%m-%d %H:%M:%S")
+class(filtered_data$t)
+#subset
+filtered_data_tracks <- filtered_data %>%
+dplyr::select(x = longitude, y = latitude,
+t = t, id = Collar.ID)
+
+#remove NAs
+filtered_data_tracks <-na.omit(filtered_data_tracks)
+#nest by id
+nested <- 
+  filtered_data_tracks %>% 
+  tidyr::nest(data = c(-id)) %>% 
+  mutate(track = purrr::map(data, ~ mk_track(., x, y, t, crs = st_crs(32635))))
+
+names(nested)
+unique(filtered_data$Season)
+```
+Step lengths
+```{r Step lengths}
+step.lengths <- unlist(map(nested$track, step_lengths))
+hist(step.lengths, breaks = 20, main="Histogram of step lengths", xlab="Step lengths")
+```
+Check sampling rate
+```{r}
+map(nested$track, summarize_sampling_rate)
+```
+Create steps from points 
+This object is a list of data frames (actually tibbles) that has coordinates of start and end points for each stetp, as well as step lengths and turning angles (in degrees, from -180 to 180).
+```{r}
+true.steps <- map(nested$track, steps)
+head(true.steps[[1]])
+```
+Create random steps
+Generating 5 random steps per used step.
+.id="id" creates a new column with the id of the list so we can still separate data by animal.
+```{r}
+true.random.steps <- map(true.steps, random_steps, n=5)
+all.steps <- bind_rows(true.random.steps, .id="id")
+all.steps
+```
+distribution of turning angles for used steps only
+```{r}
+with(all.steps, hist(ta_[case_==T], breaks=20, main = "Histogram of turning angles", xlab="turning angle"))
+```
+"Unfortunately, by using the nested data frame, we’ve lost our projection information, which we need to extract points from the habitat covariate data. We’ll just convert to a SpatialPointsDataFrame so we can project it."
+```{r}
+steps_bison <- all.steps
+#remove NA
+steps_bison <- na.omit(steps_bison)
+coordinates(steps_bison) <- ~x2_+y2_
+proj4string(steps_bison) <- CRS("+proj=utm +zone=35 +datum=WGS84 +units=m +no_defs")
+```
+Extract habitat covariate data
+```{r}
+covariates_distance_to_roads <- raster::extract(distance_to_roads_scaled, steps_bison)
+covariates_distance_to_forest_edge <- raster::extract(distance_to_forest_edge_scaled, steps_bison)
+covariates_distance_to_riparian <- raster::extract(distance_to_riparian_scaled, steps_bison)
+covariates_distance_to_release_sites <- raster::extract(distance_to_release_sites_scaled, steps_bison)
+covariates_NDVI_aug20 <- raster::extract(NDVI_aug_2020_scaled, steps_bison)
+covariates_NDVI_mar21 <- raster::extract(NDVI_march_2021_scaled, steps_bison)
+covariates_NDWI_aug20 <- raster::extract(NDWI_aug_2020_scaled, steps_bison)
+covariates_NDWI_mar21 <- raster::extract(NDWI_march_2021_scaled, steps_bison)
+covariates_elevation <- raster::extract(elevation_scaled, steps_bison)
+#covariates_broadleaf_forest <- raster::extract(broadleaf_forest_scaled, steps_bison)
+covariates_TRI_50 <- raster::extract(TRI_50_scaled, steps_bison)
+covariates_broad_2000 <- raster::extract(MWA_broad_2000_scaled, steps_bison)
+covariates_mixed_2000 <- raster::extract(MWA_mixed_2000_scaled, steps_bison)
+covariates_ngrass_2000 <- raster::extract(MWA_ngrass_2000_scaled, steps_bison)
+covariates_hm_grass_2000 <- raster::extract(MWA_hmgrass_2000_scaled, steps_bison)
+covariates_transitional_2000 <- raster::extract(MWA_transitional_2000_scaled, steps_bison)
+covariates_aspect_2000 <- raster::extract(MWA_aspect_2000_scaled, steps_bison)
+covariates_slope_500 <- raster::extract(MWA_slope_500_scaled, steps_bison)
+
+covariates <- cbind(covariates_distance_to_roads,covariates_distance_to_forest_edge,covariates_distance_to_riparian,covariates_distance_to_release_sites,covariates_NDVI_aug20,covariates_NDVI_mar21,covariates_NDWI_aug20,covariates_NDWI_mar21,covariates_elevation,covariates_TRI_50,covariates_broad_2000,covariates_mixed_2000,covariates_ngrass_2000,covariates_hm_grass_2000,covariates_transitional_2000,covariates_aspect_2000,covariates_slope_500)
+```
+add the covariate data to our SpatialPointsDataFrame of used and random steps
+```{r}
+steps_bison$covariates_distance_to_roads <- covariates[,1]
+steps_bison$covariates_distance_to_forest_edge <- covariates[,2]
+steps_bison$covariates_distance_to_riparian <- covariates[,3]
+steps_bison$covariates_distance_to_release_sites <- covariates[,4]
+steps_bison$covariates_NDVI_aug20 <- covariates[,5]
+steps_bison$covariates_NDVI_mar21 <- covariates[,6]
+steps_bison$covariates_NDWI_aug20 <- covariates[,7]
+steps_bison$covariates_NDWI_mar21 <- covariates[,8]
+steps_bison$covariates_elevation <- covariates[,9]
+steps_bison$covariates_TRI_50 <- covariates[,10]
+steps_bison$covariates_broad_2000 <- covariates[,11]
+steps_bison$covariates_mixed_2000 <- covariates[,12]
+steps_bison$covariates_ngrass_2000 <- covariates[,13]
+steps_bison$covariates_hm_grass_2000 <- covariates[,14]
+steps_bison$covariates_transitional_2000 <- covariates[,15]
+steps_bison$covariates_aspect_2000 <- covariates[,16]
+steps_bison$covariates_slope_500 <- covariates[,17]
+
+head(steps_bison)
+```
+(1) Proximity
+```{r Proximiy}
+library(mclogit)
+library(survival)
+steps_bison$step_id_ <- as.factor(steps_bison$step_id_)
+#CHECK THAT WE SHOULDNT BE USING A (NOT STEPS_BISON)
+a <- steps_bison
+a$id <- as.factor(a$id)
+#export
+write.csv(steps_bison, "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/steps_bison.csv", row.names = FALSE)
+#USED TO USE A NOT STEPS_BISON FOR MOD1
+#Distance to rip + distance to forests (habitat structure)
+mod1 <- survival::clogit(case_ ~ covariates_distance_to_riparian + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+coef(mod1)
+#Distance to roads + distance to forests
+mod2 <- survival::clogit(case_ ~covariates_distance_to_roads + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Distance to rip + distance to forests + distance to roads
+mod3 <- survival::clogit(case_ ~covariates_distance_to_riparian + covariates_distance_to_roads + covariates_distance_to_forest_edge + cluster(id) +scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod3.i <- survival::clogit(case_ ~covariates_distance_to_riparian*covariates_distance_to_forest_edge + covariates_distance_to_forest_edge + cluster(id) +scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Distance to rip + distance to forests + distance to release sites 
+mod4 <- survival::clogit(case_ ~ covariates_distance_to_riparian + covariates_distance_to_release_sites + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#sjPlot::plot_model(mod1, title="SSF Coefficients")
+summary(mod1)
+summary(mod2)
+summary(mod3)
+summary(mod3.i)
+summary(mod4)
+```
+(2) NDVI
+```{r}
+#Ndvi + ndwi (for aug and march)
+mod5 <- survival::clogit(case_ ~covariates_NDVI_aug20 + covariates_NDWI_aug20 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod6 <- survival::clogit(case_ ~ covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Ndvi + elevation (for aug and march)
+mod7 <- survival::clogit(case_ ~ covariates_NDVI_aug20 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod7.i <- survival::clogit(case_ ~ covariates_NDVI_aug20*covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod8 <- survival::clogit(case_ ~ covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod8.i <- survival::clogit(case_ ~ covariates_NDVI_mar21*covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Ndvi + broad + mixed (for aug and march)
+mod9 <- survival::clogit(case_ ~ covariates_NDVI_aug20 + covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod9.i<- survival::clogit(case_ ~ covariates_NDVI_aug20*covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod9.ii<- survival::clogit(case_ ~ covariates_NDVI_aug20*covariates_mixed_2000 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod10 <- survival::clogit(case_ ~ covariates_NDVI_mar21 + covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod10.i<- survival::clogit(case_ ~ covariates_NDVI_mar21*covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod10.ii<- survival::clogit(case_ ~ covariates_NDVI_mar21*covariates_mixed_2000 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+summary(mod5)
+summary(mod6)
+summary(mod7)
+summary(mod7.i)
+summary(mod8)
+summary(mod8.i)
+summary(mod9)
+summary(mod9.i)
+summary(mod9.ii)
+summary(mod10)
+summary(mod10.i)
+summary(mod10.ii)
+```
+(3) Configuration/composition
+```{r}
+#Broad +mixed
+mod11 <- survival::clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Natural grassland +hm grassland
+mod12 <- survival::clogit(case_ ~ covariates_ngrass_2000 + covariates_hm_grass_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod12.i <- survival::clogit(case_ ~ covariates_ngrass_2000*covariates_hm_grass_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Mixed forest+ transition habitat??
+mod13 <- survival::clogit(case_ ~ covariates_mixed_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Broad + mixed + natgrass + hmgrass + transitional
+mod14 <- survival::clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod14.i <- survival::clogit(case_ ~ covariates_broad_2000*covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod14.ii <- survival::clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000*covariates_hm_grass_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Broad + mixed + natgrass + hmgrass + transitional + dist to rip + dist to forest
+mod15 <- survival::clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + covariates_distance_to_riparian + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Broad + mixed + distance to roads
+mod16 <- survival::clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_distance_to_roads + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+summary(mod11)
+summary(mod12)
+summary(mod12.i)
+summary(mod13)
+summary(mod14)
+summary(mod14.i)
+summary(mod14.ii)
+summary(mod15)
+summary(mod16)
+```
+(4) Topography
+```{r}
+#TRI + slope + elevation + aspect
+mod17 <- survival::clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod17.i <- survival::clogit(case_ ~ covariates_TRI_50*covariates_elevation + covariates_slope_500 + covariates_aspect_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#TRI + slope + elevation + aspect + ndvi + ndwi
+mod18 <- survival::clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_aug20 + covariates_NDWI_aug20 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+mod19 <- survival::clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#TRI + slope + elevation + aspect +forest mixed + forest broad
+mod20 <- survival::clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_mixed_2000 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+summary(mod17)
+summary(mod17.i)
+summary(mod18)
+summary(mod19)
+summary(mod20)
+```
+Adding interactions
+```{r}
+#forest edge and roads
+mod21 <- survival::clogit(case_ ~  covariates_distance_to_forest_edge*covariates_distance_to_roads + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+summary(mod21)
+#forest edge and broad
+mod22 <- survival::clogit(case_ ~ covariates_distance_to_forest_edge + covariates_broad_2000 + covariates_distance_to_forest_edge*covariates_broad_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#riparian zones and elevation
+mod23 <- survival::clogit(case_ ~ covariates_distance_to_riparian + covariates_elevation + covariates_distance_to_riparian* covariates_elevation + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#########################
+#broadleaf forest and elevation (with TRI and NDVI)
+mod24 <- survival::clogit(case_ ~ covariates_broad_2000*covariates_elevation + covariates_TRI_50 + covariates_NDVI_mar21 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+mod24.1 <- survival::clogit(case_ ~ covariates_broad_2000*covariates_elevation + covariates_TRI_50 + covariates_NDVI_aug20 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#natural grasslands and distance to forest edge (with NDVI and elevation)
+mod25 <- survival::clogit(case_ ~ covariates_ngrass_2000*covariates_distance_to_forest_edge + covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#transitional and distance to forest edge (with elevation and aspect and TRI)
+mod26 <- survival::clogit(case_ ~ covariates_transitional_2000*covariates_distance_to_forest_edge + covariates_elevation + covariates_aspect_2000 + covariates_TRI_50 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#transitional and mixed forest (with broadleaf and elevation)
+mod27 <- survival::clogit(case_ ~ covariates_transitional_2000*covariates_mixed_2000 + covariates_elevation + covariates_broad_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#transitional and broadleaf (with mixed and elevation)
+mod28 <- survival::clogit(case_ ~ covariates_transitional_2000*covariates_broad_2000 + covariates_elevation + covariates_mixed_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to roads and broadleaf (with NDVI and elevation)
+mod29 <- survival::clogit(case_ ~ covariates_distance_to_roads*covariates_broad_2000 + covariates_elevation + covariates_NDVI_mar21 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to roads and mixed (with NDVI and elevation)
+mod30 <- survival::clogit(case_ ~ covariates_distance_to_roads*covariates_mixed_2000 + covariates_elevation + covariates_NDVI_mar21 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to roads and natural grasslands (with NDVI, elevation and TRI)
+mod31 <- survival::clogit(case_ ~ covariates_distance_to_roads*covariates_ngrass_2000 + covariates_elevation + covariates_NDVI_mar21 + covariates_TRI_50 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to roads and transitional (with NDVI, elevation, natural grasslands and TRI)
+mod32 <- survival::clogit(case_ ~ covariates_distance_to_roads*covariates_transitional_2000 + covariates_elevation + covariates_NDVI_mar21 + covariates_TRI_50 + covariates_ngrass_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to release sites and natural grasslands (with broadleaf, mixed and NDVI)
+mod33 <- survival::clogit(case_ ~ covariates_distance_to_release_sites*covariates_ngrass_2000 + covariates_broad_2000 + covariates_NDVI_mar21 + covariates_mixed_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to release sites and broadleaf (with grasslands,mixed and NDVI)
+mod34 <- survival::clogit(case_ ~ covariates_distance_to_release_sites*covariates_broad_2000 + covariates_ngrass_2000 + covariates_NDVI_mar21 + covariates_mixed_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to release sites and mixed (with grasslands, broad and NDVI)
+mod35 <- survival::clogit(case_ ~ covariates_distance_to_release_sites*covariates_mixed_2000 + covariates_ngrass_2000 + covariates_NDVI_mar21 + covariates_broad_2000 + cluster(id) + scale(sl_)+ strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and broadleaf (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod36 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_broad_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and natgrasslands (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod37 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_ngrass_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and mixed (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod38 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_mixed_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and transitional habitat (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod39 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_transitional_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to forest edge and NDVI (with elevation, slope and TRI)
+mod40 <- survival::clogit(case_ ~ covariates_distance_to_forest_edge*covariates_NDVI_mar21 + covariates_slope_500 + covariates_elevation + covariates_TRI_50 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to release sites and TRI (with aspect, elevation and slope)
+mod41 <- survival::clogit(case_ ~ covariates_distance_to_release_sites*covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to release sites and elevation (with aspect, TRI and slope)
+mod42 <- survival::clogit(case_ ~ covariates_distance_to_release_sites*covariates_elevation + covariates_slope_500 + covariates_TRI_50 + covariates_aspect_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to forest edge and broadleaf (with mixed, ndvi and elevation)
+mod43 <- survival::clogit(case_ ~ covariates_distance_to_forest_edge*covariates_broad_2000 + covariates_mixed_2000 + covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#distance to forest edge and mixed (with broadleaf, ndvi and elevation)
+mod44 <- survival::clogit(case_ ~ covariates_distance_to_forest_edge*covariates_mixed_2000 + covariates_broad_2000 + covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#Elevation and TRI (with ndvi, slope and aspect)
+mod45 <- survival::clogit(case_ ~ covariates_elevation*covariates_TRI_50+ covariates_broad_2000 + covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#################################################
+#Additional models with proximity variables into the models that continually come out on top(36-39)
+#TRI and broadleaf (with slope, elevation, aspect, NDVI,NDWI, distance to forest edge and distance to release sites)
+mod46 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_broad_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + covariates_distance_to_release_sites + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and natgrasslands (with slope, elevation, aspect, NDVI,NDWI, distance to forest edge and distance to release sites)
+mod47 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_ngrass_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + covariates_distance_to_release_sites + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and mixed (with slope, elevation, aspect, NDVI, NDWI, distance to forest edge and distance to release sites)
+mod48 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_mixed_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + covariates_distance_to_release_sites + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+#install.packages("survival")
+#library(survival)
+#mod48 fit_clogit attempt
+mod48test <- fit_clogit(case_ ~ covariates_TRI_50*covariates_mixed_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + covariates_distance_to_release_sites + id + sl_ + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and transitional habitat (with slope, elevation, aspect, NDVI,NDWI, distance to forest edge and distance to release sites)
+mod49 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_transitional_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21+ covariates_distance_to_forest_edge + covariates_distance_to_release_sites + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and broad (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod50 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_broad_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and natgrasslands (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod51 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_ngrass_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and mixed (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod52 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_mixed_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+# TRI and transitional habitat (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod53 <- survival::clogit(case_ ~ covariates_TRI_50*covariates_transitional_2000 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21+ covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = steps_bison)
+summary(mod21)
+summary(mod22)
+summary(mod23)
+summary(mod24)
+summary(mod25)
+summary(mod26)
+summary(mod27)
+summary(mod28)
+summary(mod29)
+summary(mod30)
+summary(mod31)
+summary(mod32)
+summary(mod33)
+summary(mod34)
+summary(mod35)
+summary(mod36)
+summary(mod37)
+summary(mod38)
+summary(mod39)
+summary(mod40)
+summary(mod41)
+summary(mod42)
+summary(mod43)
+summary(mod44)
+summary(mod45)
+summary(mod46)
+summary(mod47)
+summary(mod48)
+summary(mod49)
+summary(mod50)
+summary(mod51)
+summary(mod52)
+summary(mod53)
+```
+
+AIC
+```{r}
+library(oddsratio)
+sjPlot::plot_model(mod1, title="SSF Coefficients")
+str(mod1)
+sm <- summary(mod1)
+str(sm)
+sm$coefficients
+sm$conf.int
+
+library(MuMIn)
+modsel <- model.sel(mod1,mod2,mod3,mod3.i,mod4,mod5,mod6,mod7,mod8,mod8.i,mod9,mod9.i,mod9.ii,mod10,mod10.i,mod10.ii,mod11,mod12,mod12.i,mod13,mod14,mod14.i,mod14.ii,mod15,mod16,mod17,mod17.i,mod18,mod19,mod20,mod21, mod22, mod23, mod24, mod25, mod26, mod27, mod28,mod29,mod30,mod31,mod32,mod33,mod34,mod35,mod36,mod37,mod38,mod39,mod40,mod41,mod42,mod43,mod44,mod45,mod46,mod47,mod48,mod49,mod50,mod51,mod52,mod53)
+modsel #model 48 on top =>
+#tetsing diff between mod46 and mod48
+modelall <- model.sel(mod46, mod48)
+modelall
+```
+Plotting models
+```{r}
+#library(sjPlot)
+plot_model(mod1, title="SSF1 Coefficients")
+plot_model(mod2, title="SSF2 Coefficients")
+plot_model(mod3, title="SSF3 Coefficients")
+plot_model(mod4, title="SSF4 Coefficients")
+plot_model(mod5, title="SSF5 Coefficients")
+plot_model(mod6, title="SSF6 Coefficients")
+plot_model(mod7, title="SSF7 Coefficients")
+plot_model(mod7.i, title="SSF7.i Coefficients")
+plot_model(mod8, title="SSF8 Coefficients")
+plot_model(mod8.i, title="SSF8.i Coefficients")
+plot_model(mod9, title="SSF9 Coefficients")
+plot_model(mod9.i, title="SSF9.i Coefficients")
+plot_model(mod9.ii, title="SSF9.ii Coefficients")
+plot_model(mod10, title="SSF10 Coefficients")
+plot_model(mod10.i, title="SSF10.i Coefficients")
+plot_model(mod10.ii, title="SSF10.ii Coefficients")
+plot_model(mod11, title="SSF11 Coefficients")
+plot_model(mod12, title="SSF12 Coefficients")
+plot_model(mod12.i, title="SSF12.i Coefficients")
+plot_model(mod13, title="SSF13 Coefficients")
+plot_model(mod14, title="SSF14 Coefficients")
+plot_model(mod14.i, title="SSF14 Coefficients")
+plot_model(mod14.ii, title="SSF14 Coefficients")
+plot_model(mod15, title="SSF15 Coefficients")
+plot_model(mod16, title="SSF16 Coefficients")
+plot_model(mod17, title="SSF17 Coefficients")
+plot_model(mod17.i, title="SSF17 Coefficients")
+plot_model(mod18, title="SSF18 Coefficients")
+plot_model(mod19, title="SSF19 Coefficients")
+plot_model(mod20, title="SSF20 Coefficients")
+plot_model(mod21, title="SSF21 Coefficients")
+plot_model(mod22, title="SSF22 Coefficients")
+plot_model(mod23, title="SSF23 Coefficients")
+plot_model(mod24, title="SSF24 Coefficients")
+plot_model(mod25, title="SSF25 Coefficients")
+plot_model(mod26, title="SSF26 Coefficients")
+plot_model(mod27, title="SSF27 Coefficients")
+plot_model(mod28, title="SSF28 Coefficients")
+plot_model(mod29, title="SSF29 Coefficients")
+plot_model(mod30, title="SSF30 Coefficients")
+plot_model(mod31, title="SSF31 Coefficients")
+plot_model(mod32, title="SSF32 Coefficients")
+plot_model(mod33, title="SSF33 Coefficients")
+plot_model(mod34, title="SSF34 Coefficients")
+plot_model(mod35, title="SSF35 Coefficients")
+plot_model(mod36, title="SSF36 Coefficients")
+plot_model(mod37, title="SSF37 Coefficients")
+plot_model(mod38, title="SSF38 Coefficients")
+plot_model(mod39, title="SSF39 Coefficients")
+plot_model(mod40, title="SSF40 Coefficients")
+plot_model(mod41, title="SSF41 Coefficients")
+plot_model(mod42, title="SSF42 Coefficients")
+plot_model(mod43, title="SSF43 Coefficients")
+plot_model(mod44, title="SSF44 Coefficients")
+plot_model(mod45, title="SSF45 Coefficients")
+plot_model(mod46, title="SSF46 Coefficients")
+plot_model(mod47, title="SSF47 Coefficients")
+plot_model(mod48, title="SSF48 Coefficients")
+plot_model(mod49, title="SSF49 Coefficients")
+plot_model(mod50, title="SSF50 Coefficients")
+plot_model(mod51, title="SSF51 Coefficients")
+plot_model(mod52, title="SSF52 Coefficients")
+plot_model(mod53, title="SSF53 Coefficients")
+```
+
+```{r}
+summary(mod48)
+summary(wintermod48)
+summary(summermod48)
+summary(premod48)
+summary(postmod48)
+summary(buneamod50)
+summary(lerestimod50)
+```
+```{r}
+#Changing the axis size on the OR plots
+library(ggplot2)
+#48
+tiff("mod48OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(mod48, vline.color = "red", title = "", axis.labels = c("TRI * Mixed Forest", "Step Length","Distance to release sites","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Mixed Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+#winter 48
+tiff("wintermod48OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(wintermod48, vline.color = "red", title = "", axis.labels = c("TRI * Mixed Forest", "Step Length","Distance to release sites","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Mixed Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+#summer 48
+tiff("summermod48OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(summermod48, vline.color = "red", title = "", axis.labels = c("TRI * Mixed Forest", "Step Length","Distance to release sites","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Mixed Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+#bunea mod 50
+tiff("buneamod50OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(buneamod50, vline.color = "red", title = "", axis.labels = c("TRI * Broadleaf Forest", "Step Length","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Broadleaf Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+#leresti mod 50
+tiff("lerestimod50OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(lerestimod50, vline.color = "red", title = "", axis.labels = c("TRI * Broadleaf Forest", "Step Length","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Broadleaf Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+#pre mod 48
+tiff("premod48OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(premod48, vline.color = "red", title = "", axis.labels = c("TRI * Mixed Forest", "Step Length","Distance to release sites","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Mixed Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+#post mod 48
+tiff("postmod48OR.tiff", units="in", width=8, height=6, res=300)
+sjPlot::plot_model(postmod48, vline.color = "red", title = "", axis.labels = c("TRI * Mixed Forest", "Step Length","Distance to release sites","Distance to Forest Edge","Winter NDWI","Winter NDVI","Aspect", "Elevation","Slope","Mixed Forest","TRI")) +
+ theme_bw()+ 
+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+       text = element_text(size = 17)) +
+    xlab("") +
+    ylab("Odds ratio")
+dev.off()
+```
+```{r Mean and SE at used and available points}
+#finding the mean and SE for the TRUE and FALSE case_ variables for each covariate
+library(sf)
+library(dplyr)
+
+# Convert the SpatialPointsDataFrame to an sf object
+steps_bison_sf <- st_as_sf(steps_bison)
+
+# Calculate summary statistics for TRUE cases
+summary_stats_true <- steps_bison_sf %>%
+  st_drop_geometry() %>%  # Drop geometry column if not needed
+  filter(case_ == TRUE) %>%
+  summarise(
+    mean_distance_to_roads = mean(covariates_distance_to_roads, na.rm = TRUE),
+    mean_distance_to_forest_edge = mean(covariates_distance_to_forest_edge, na.rm = TRUE),
+    mean_distance_to_riparian = mean(covariates_distance_to_riparian, na.rm = TRUE),
+    mean_distance_to_release_sites = mean(covariates_distance_to_release_sites, na.rm = TRUE),
+    mean_NDVI_aug20 = mean(covariates_NDVI_aug20, na.rm = TRUE),
+    mean_NDVI_mar21 = mean(covariates_NDVI_mar21, na.rm = TRUE),
+    mean_NDWI_aug20 = mean(covariates_NDWI_aug20, na.rm = TRUE),
+    mean_NDWI_mar21 = mean(covariates_NDWI_mar21, na.rm = TRUE),
+    mean_elevation = mean(covariates_elevation, na.rm = TRUE),
+    mean_TRI_50 = mean(covariates_TRI_50, na.rm = TRUE),
+    mean_broad_2000 = mean(covariates_broad_2000, na.rm = TRUE),
+    mean_mixed_2000 = mean(covariates_mixed_2000, na.rm = TRUE),
+    mean_ngrass_2000 = mean(covariates_ngrass_2000, na.rm = TRUE),
+    mean_hm_grass_2000 = mean(covariates_hm_grass_2000, na.rm = TRUE),
+    mean_transitional_2000 = mean(covariates_transitional_2000, na.rm = TRUE),
+    mean_aspect_2000 = mean(covariates_aspect_2000, na.rm = TRUE),
+    mean_slope_500 = mean(covariates_slope_500, na.rm = TRUE)
+  )
+
+# Calculate standard error for TRUE cases
+se_true <- steps_bison_sf %>%
+  filter(case_ == TRUE) %>%
+  summarise(
+    se_distance_to_roads = sd(covariates_distance_to_roads, na.rm = TRUE) / sqrt(n()),
+    se_distance_to_forest_edge = sd(covariates_distance_to_forest_edge, na.rm = TRUE) / sqrt(n()),
+    se_distance_to_riparian = sd(covariates_distance_to_riparian, na.rm = TRUE) / sqrt(n()),
+    se_distance_to_release_sites = sd(covariates_distance_to_release_sites, na.rm = TRUE) / sqrt(n()),
+    se_NDVI_aug20 = sd(covariates_NDVI_aug20, na.rm = TRUE) / sqrt(n()),
+    se_NDVI_mar21 = sd(covariates_NDVI_mar21, na.rm = TRUE) / sqrt(n()),
+    se_NDWI_aug20 = sd(covariates_NDWI_aug20, na.rm = TRUE) / sqrt(n()),
+    se_NDWI_mar21 = sd(covariates_NDWI_mar21, na.rm = TRUE) / sqrt(n()),
+    se_elevation = sd(covariates_elevation, na.rm = TRUE) / sqrt(n()),
+    se_TRI_50 = sd(covariates_TRI_50, na.rm = TRUE) / sqrt(n()),
+    se_broad_2000 = sd(covariates_broad_2000, na.rm = TRUE) / sqrt(n()),
+    se_mixed_2000 = sd(covariates_mixed_2000, na.rm = TRUE) / sqrt(n()),
+    se_ngrass_2000 = sd(covariates_ngrass_2000, na.rm = TRUE) / sqrt(n()),
+    se_hm_grass_2000 = sd(covariates_hm_grass_2000, na.rm = TRUE) / sqrt(n()),
+    se_transitional_2000 = sd(covariates_transitional_2000, na.rm = TRUE) / sqrt(n()),
+    se_aspect_2000 = sd(covariates_aspect_2000, na.rm = TRUE) / sqrt(n()),
+    se_slope_500 = sd(covariates_slope_500, na.rm = TRUE) / sqrt(n())
+  )
+
+# Combine the summary statistics for TRUE cases with standard errors
+summary_stats_true <- cbind(summary_stats_true, se_true)
+
+# Calculate summary statistics for FALSE cases
+summary_stats_false <- steps_bison_sf %>%
+  st_drop_geometry() %>%  # Drop geometry column if not needed
+  filter(case_ == FALSE) %>%
+  summarise(
+    mean_distance_to_roads = mean(covariates_distance_to_roads, na.rm = TRUE),
+    mean_distance_to_forest_edge = mean(covariates_distance_to_forest_edge, na.rm = TRUE),
+    mean_distance_to_riparian = mean(covariates_distance_to_riparian, na.rm = TRUE),
+    mean_distance_to_release_sites = mean(covariates_distance_to_release_sites, na.rm = TRUE),
+    mean_NDVI_aug20 = mean(covariates_NDVI_aug20, na.rm = TRUE),
+    mean_NDVI_mar21 = mean(covariates_NDVI_mar21, na.rm = TRUE),
+    mean_NDWI_aug20 = mean(covariates_NDWI_aug20, na.rm = TRUE),
+    mean_NDWI_mar21 = mean(covariates_NDWI_mar21, na.rm = TRUE),
+    mean_elevation = mean(covariates_elevation, na.rm = TRUE),
+    mean_TRI_50 = mean(covariates_TRI_50, na.rm = TRUE),
+    mean_broad_2000 = mean(covariates_broad_2000, na.rm = TRUE),
+    mean_mixed_2000 = mean(covariates_mixed_2000, na.rm = TRUE),
+    mean_ngrass_2000 = mean(covariates_ngrass_2000, na.rm = TRUE),
+    mean_hm_grass_2000 = mean(covariates_hm_grass_2000, na.rm = TRUE),
+    mean_transitional_2000 = mean(covariates_transitional_2000, na.rm = TRUE),
+    mean_aspect_2000 = mean(covariates_aspect_2000, na.rm = TRUE),
+    mean_slope_500 = mean(covariates_slope_500, na.rm = TRUE)
+  )
+
+# Calculate standard error for FALSE cases
+se_false <- steps_bison_sf %>%
+  filter(case_ == FALSE) %>%
+  summarise(
+    se_distance_to_roads = sd(covariates_distance_to_roads, na.rm = TRUE) / sqrt(n()),
+    se_distance_to_forest_edge = sd(covariates_distance_to_forest_edge, na.rm = TRUE) / sqrt(n()),
+    se_distance_to_riparian = sd(covariates_distance_to_riparian, na.rm = TRUE) / sqrt(n()),
+    se_distance_to_release_sites = sd(covariates_distance_to_release_sites, na.rm = TRUE) / sqrt(n()),
+    se_NDVI_aug20 = sd(covariates_NDVI_aug20, na.rm = TRUE) / sqrt(n()),
+    se_NDVI_mar21 = sd(covariates_NDVI_mar21, na.rm = TRUE) / sqrt(n()),
+    se_NDWI_aug20 = sd(covariates_NDWI_aug20, na.rm = TRUE) / sqrt(n()),
+    se_NDWI_mar21 = sd(covariates_NDWI_mar21, na.rm = TRUE) / sqrt(n()),
+    se_elevation = sd(covariates_elevation, na.rm = TRUE) / sqrt(n()),
+    se_TRI_50 = sd(covariates_TRI_50, na.rm = TRUE) / sqrt(n()),
+    se_broad_2000 = sd(covariates_broad_2000, na.rm = TRUE) / sqrt(n()),
+    se_mixed_2000 = sd(covariates_mixed_2000, na.rm = TRUE) / sqrt(n()),
+    se_ngrass_2000 = sd(covariates_ngrass_2000, na.rm = TRUE) / sqrt(n()),
+    se_hm_grass_2000 = sd(covariates_hm_grass_2000, na.rm = TRUE) / sqrt(n()),
+    se_transitional_2000 = sd(covariates_transitional_2000, na.rm = TRUE) / sqrt(n()),
+    se_aspect_2000 = sd(covariates_aspect_2000, na.rm = TRUE) / sqrt(n()),
+    se_slope_500 = sd(covariates_slope_500, na.rm = TRUE) / sqrt(n())
+  )
+
+# Combine the summary statistics for FALSE cases with standard errors
+summary_stats_false <- cbind(summary_stats_false, se_false)
+
+# Combine the summary statistics for TRUE and FALSE cases
+summary_stats_combined <- rbind(summary_stats_true, summary_stats_false)
+
+# View the summary statistics
+print(summary_stats_combined)
+```
+```{r Unscaling the variables}
+
+
+```
+
+
+
+
+
+
+
+

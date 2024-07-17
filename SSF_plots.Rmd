@@ -1,0 +1,36 @@
+---
+title: "SSF plots"
+author: "Lucy Holland"
+date: "2023-11-15"
+output: html_document
+---
+```{r setup, include=FALSE}
+# Make a new data.frame for s1
+s1 <- data.frame(
+  TRI = seq(min(steps.sp@data$covariates_TRI_50), 
+                   max(steps.sp@data$covariates_TRI_50), 
+                   length = 50),
+  Mixed = mean(steps.sp@data$covariates_mixed_2000), Slope = mean(steps.sp@data$covariates_slope_500), Elevation = mean(steps.sp@data$covariates_elevation), Aspect = mean(steps.sp@data$covariates_aspect_2000), NDVI_winter = mean(steps.sp@data$covariates_NDVI_mar21), NDWI_winter = mean(steps.sp@data$covariates_NDWI_mar21), Dist_forest_edge = mean(steps.sp@data$covariates_distance_to_forest_edge), Dist_to_release = mean(steps.sp@data$covariates_distance_to_release_sites), TRI_mixed = mean(steps.sp@data$covariates_TRI_50*steps.sp@data$covariates_mixed_2000),
+  sl_ = 100)
+
+# data.frame for s2
+s2 <- data.frame(
+  elevation = mean(steps.sp@data$covariates_mixed_2000), # mean of elev, since we scaled and centered
+  Mixed = mean(steps.sp@data$covariates_mixed_2000), Slope = mean(steps.sp@data$covariates_slope_500), Elevation = mean(steps.sp@data$covariates_elevation), Aspect = mean(steps.sp@data$covariates_aspect_2000), NDVI_winter = mean(steps.sp@data$covariates_NDVI_mar21), NDWI_winter = mean(steps.sp@data$covariates_NDWI_mar21), Dist_forest_edge = mean(steps.sp@data$covariates_distance_to_forest_edge), Dist_to_release = mean(steps.sp@data$covariates_distance_to_release_sites), TRI_mixed = mean(steps.sp@data$covariates_TRI_50*steps.sp@data$covariates_mixed_2000),
+  sl_ = 100)
+?log_rss
+# Calculate log-RSS
+#ISSUE HERE
+lr2 <- log_rss(mod48, s1, s2)
+
+# Plot using ggplot2
+ggplot(lr2$df, aes(x = elevation_end_x1, y = log_rss)) +
+  geom_line(size = 1) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray30") +
+  xlab("Elevation (SD)") +
+  ylab("log-RSS vs Mean Elevation") +
+  theme_bw()
+```
+
+
+

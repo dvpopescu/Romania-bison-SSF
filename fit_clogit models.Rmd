@@ -1,0 +1,370 @@
+---
+title: "fit_clogit models"
+author: "Lucy Holland"
+date: "2023-11-28"
+output: html_document
+---
+```{r}
+library(survival)
+a <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/steps_bison.csv")
+```
+
+```{r setup, include=FALSE}
+# Distance to rip + distance to forests (habitat structure)
+mod1new <- fit_clogit(case_ ~ covariates_distance_to_riparian + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+coef(mod1new)
+coef(mod1)
+
+# Distance to roads + distance to forests
+mod2new <- fit_clogit(case_ ~ covariates_distance_to_roads + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Distance to rip + distance to forests + distance to roads
+mod3new <- fit_clogit(case_ ~ covariates_distance_to_riparian + covariates_distance_to_roads + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod3new.i <- fit_clogit(case_ ~ covariates_distance_to_riparian * covariates_distance_to_forest_edge + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Distance to rip + distance to forests + distance to release sites
+mod4new <- fit_clogit(case_ ~ covariates_distance_to_riparian + covariates_distance_to_release_sites + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Plotting the model
+sjPlot::plot_model(mod1new, title = "SSF Coefficients")
+summary(mod1new)
+summary(mod2new)
+summary(mod3new)
+summary(mod3new.i)
+summary(mod4new)
+```
+(2) NDVI
+```{r}
+# Ndvi + ndwi (for aug and march)
+mod5new <- fit_clogit(case_ ~ covariates_NDVI_aug20 + covariates_NDWI_aug20 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod6new <- fit_clogit(case_ ~ covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Ndvi + elevation (for aug and march)
+mod7new <- fit_clogit(case_ ~ covariates_NDVI_aug20 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod7new.i <- fit_clogit(case_ ~ covariates_NDVI_aug20 * covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod8new <- fit_clogit(case_ ~ covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod8new.i <- fit_clogit(case_ ~ covariates_NDVI_mar21 * covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Ndvi + broad + mixed (for aug and march)
+mod9new <- fit_clogit(case_ ~ covariates_NDVI_aug20 + covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod9new.i <- fit_clogit(case_ ~ covariates_NDVI_aug20 * covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod9new.ii <- fit_clogit(case_ ~ covariates_NDVI_aug20 * covariates_mixed_2000 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod10new <- fit_clogit(case_ ~ covariates_NDVI_mar21 + covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod10new.i <- fit_clogit(case_ ~ covariates_NDVI_mar21 * covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod10new.ii <- fit_clogit(case_ ~ covariates_NDVI_mar21 * covariates_mixed_2000 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Summaries
+summary(mod5new)
+summary(mod6new)
+summary(mod7new)
+summary(mod7new.i)
+summary(mod8new)
+summary(mod8new.i)
+summary(mod9new)
+summary(mod9new.i)
+summary(mod9new.ii)
+summary(mod10new)
+summary(mod10new.i)
+summary(mod10new.ii)
+```
+(3) Configuration/composition
+```{r}
+# Broad + mixed
+mod11new <- fit_clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Natural grassland + hm grassland
+mod12new <- fit_clogit(case_ ~ covariates_ngrass_2000 + covariates_hm_grass_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod12new.i <- fit_clogit(case_ ~ covariates_ngrass_2000 * covariates_hm_grass_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Mixed forest + transition habitat
+mod13new <- fit_clogit(case_ ~ covariates_mixed_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Broad + mixed + natgrass + hmgrass + transitional
+mod14new <- fit_clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod14new.i <- fit_clogit(case_ ~ covariates_broad_2000 * covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod14new.ii <- fit_clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000 * covariates_hm_grass_2000 + covariates_transitional_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Broad + mixed + natgrass + hmgrass + transitional + dist to rip + dist to forest
+mod15new <- fit_clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + covariates_distance_to_riparian + covariates_distance_to_forest_edge + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Broad + mixed + distance to roads
+mod16new <- fit_clogit(case_ ~ covariates_broad_2000 + covariates_mixed_2000 + covariates_distance_to_roads + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Summaries
+summary(mod11new)
+summary(mod12new)
+summary(mod12new.i)
+summary(mod13new)
+summary(mod14new)
+summary(mod14new.i)
+summary(mod14new.ii)
+summary(mod15new)
+summary(mod16new)
+```
+(4) Topography
+```{r}
+# TRI + slope + elevation + aspect
+mod17new <- fit_clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod17new.i <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_elevation + covariates_slope_500 + covariates_aspect_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI + slope + elevation + aspect + ndvi + ndwi
+mod18new <- fit_clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_aug20 + covariates_NDWI_aug20 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod19new <- fit_clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_NDVI_mar21 + covariates_NDWI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI + slope + elevation + aspect + forest mixed + forest broad
+mod20new <- fit_clogit(case_ ~ covariates_TRI_50 + covariates_slope_500 + covariates_elevation + covariates_aspect_2000 + covariates_mixed_2000 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Summaries
+summary(mod17new)
+summary(mod17new.i)
+summary(mod18new)
+summary(mod19new)
+summary(mod20new)
+```
+Adding interactions
+```{r}
+# forest edge and roads
+mod21new <- fit_clogit(case_ ~ covariates_distance_to_forest_edge * covariates_distance_to_roads + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+summary(mod21new)
+
+# forest edge and broad
+mod22new <- fit_clogit(case_ ~ covariates_distance_to_forest_edge + covariates_broad_2000 + covariates_distance_to_forest_edge * covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# riparian zones and elevation
+mod23new <- fit_clogit(case_ ~ covariates_distance_to_riparian + covariates_elevation + covariates_distance_to_riparian * covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# broadleaf forest and elevation (with TRI and NDVI)
+mod24new <- fit_clogit(case_ ~ covariates_broad_2000 * covariates_elevation + covariates_TRI_50 + covariates_NDVI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+mod24.1new <- fit_clogit(case_ ~ covariates_broad_2000 * covariates_elevation + covariates_TRI_50 + covariates_NDVI_aug20 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# natural grasslands and distance to forest edge (with NDVI and elevation)
+mod25new <- fit_clogit(case_ ~ covariates_ngrass_2000 * covariates_distance_to_forest_edge + covariates_NDVI_mar21 + covariates_elevation + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# transitional and distance to forest edge (with elevation and aspect and TRI)
+mod26new <- fit_clogit(case_ ~ covariates_transitional_2000 * covariates_distance_to_forest_edge + covariates_elevation + covariates_aspect_2000 + covariates_TRI_50 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# transitional and mixed forest (with broadleaf and elevation)
+mod27new <- fit_clogit(case_ ~ covariates_transitional_2000 * covariates_mixed_2000 + covariates_elevation + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# transitional and broadleaf (with mixed and elevation)
+mod28new <- fit_clogit(case_ ~ covariates_transitional_2000 * covariates_broad_2000 + covariates_elevation + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to roads and broadleaf (with NDVI and elevation)
+mod29new <- fit_clogit(case_ ~ covariates_distance_to_roads * covariates_broad_2000 + covariates_elevation + covariates_NDVI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to roads and mixed (with NDVI and elevation)
+mod30new <- fit_clogit(case_ ~ covariates_distance_to_roads * covariates_mixed_2000 + covariates_elevation + covariates_NDVI_mar21 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to roads and natural grasslands (with NDVI, elevation and TRI)
+mod31new <- fit_clogit(case_ ~ covariates_distance_to_roads * covariates_ngrass_2000 + covariates_elevation + covariates_NDVI_mar21 + covariates_TRI_50 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to roads and transitional (with NDVI, elevation, natural grasslands and TRI)
+mod32new <- fit_clogit(case_ ~ covariates_distance_to_roads * covariates_transitional_2000 + covariates_elevation + covariates_NDVI_mar21 + covariates_TRI_50 + covariates_ngrass_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to release sites and natural grasslands (with broadleaf, mixed and NDVI)
+mod33new <- fit_clogit(case_ ~ covariates_distance_to_release_sites * covariates_ngrass_2000 + covariates_broad_2000 + covariates_NDVI_mar21 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to release sites and broadleaf (with grasslands,mixed and NDVI)
+mod34new <- fit_clogit(case_ ~ covariates_distance_to_release_sites * covariates_broad_2000 + covariates_ngrass_2000 + covariates_NDVI_mar21 + covariates_mixed_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to release sites and mixed (with grasslands, broad and NDVI)
+mod35new <- fit_clogit(case_ ~ covariates_distance_to_release_sites * covariates_mixed_2000 + covariates_ngrass_2000 + covariates_NDVI_mar21 + covariates_broad_2000 + cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and broadleaf (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod36new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_broad_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and natgrasslands (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod37new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_ngrass_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and mixed (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod38new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_mixed_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and transitional habitat (with mod19-slope, elevation, aspect, NDVI and NDWI)
+mod39new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_transitional_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to forest edge and NDVI (with elevation, slope and TRI)
+mod40new <- fit_clogit(case_ ~ covariates_distance_to_forest_edge * covariates_NDVI_mar21 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_TRI_50 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to release sites and TRI (with aspect, elevation and slope)
+mod41new <- fit_clogit(case_ ~ covariates_distance_to_release_sites * covariates_TRI_50 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to release sites and elevation (with aspect, TRI and slope)
+mod42new <- fit_clogit(case_ ~ covariates_distance_to_release_sites * covariates_elevation +
+                        covariates_slope_500 + covariates_TRI_50 +
+                        covariates_aspect_2000 + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to forest edge and broadleaf (with mixed, ndvi and elevation)
+mod43new <- fit_clogit(case_ ~ covariates_distance_to_forest_edge * covariates_broad_2000 +
+                        covariates_mixed_2000 + covariates_NDVI_mar21 +
+                        covariates_elevation + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# distance to forest edge and mixed (with broadleaf, ndvi and elevation)
+mod44new <- fit_clogit(case_ ~ covariates_distance_to_forest_edge * covariates_mixed_2000 +
+                        covariates_broad_2000 + covariates_NDVI_mar21 +
+                        covariates_elevation + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# Elevation and TRI (with ndvi, slope and aspect)
+mod45new <- fit_clogit(case_ ~ covariates_elevation * covariates_TRI_50 +
+                        covariates_broad_2000 + covariates_NDVI_mar21 +
+                        covariates_elevation + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+# Additional models with proximity variables into the models that continually come out on top(36-39)
+# TRI and broadleaf (with slope, elevation, aspect, NDVI,NDWI, distance to forest edge and distance to release sites)
+mod46new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_broad_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        covariates_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and natgrasslands (with slope, elevation, aspect, NDVI,NDWI, distance to forest edge and distance to release sites)
+mod47new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_ngrass_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        covariates_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and mixed (with slope, elevation, aspect, NDVI, NDWI, distance to forest edge and distance to release sites)
+mod48new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_mixed_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        covariates_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and transitional habitat (with slope, elevation, aspect, NDVI,NDWI, distance to forest edge and distance to release sites)
+mod49new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_transitional_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        covariates_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and broad (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod50new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_broad_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and natgrasslands (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod51new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_ngrass_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and mixed (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod52new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_mixed_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+
+# TRI and transitional habitat (with slope, elevation, aspect, NDVI,NDWI and distance to forest edge)
+mod53new <- fit_clogit(case_ ~ covariates_TRI_50 * covariates_transitional_2000 +
+                        covariates_slope_500 + covariates_elevation +
+                        covariates_aspect_2000 + covariates_NDVI_mar21 +
+                        covariates_NDWI_mar21 + covariates_distance_to_forest_edge +
+                        cluster(id) + scale(sl_) + strata(step_id_), method = 'approximate', data = a, model = TRUE)
+summary(mod21new)
+summary(mod22new)
+summary(mod23new)
+summary(mod24new)
+summary(mod25new)
+summary(mod26new)
+summary(mod27new)
+summary(mod28new)
+summary(mod29new)
+summary(mod30new)
+summary(mod31new)
+summary(mod32new)
+summary(mod33new)
+summary(mod34new)
+summary(mod35new)
+summary(mod36new)
+summary(mod37new)
+summary(mod38new)
+summary(mod39new)
+summary(mod40new)
+summary(mod41new)
+summary(mod42new)
+summary(mod43new)
+summary(mod44new)
+summary(mod45new)
+summary(mod46new)
+summary(mod47new)
+summary(mod48new)
+summary(mod49new)
+summary(mod50new)
+summary(mod51new)
+summary(mod52new)
+summary(mod53new)
+```
+AIC
+```{r}
+library(MuMIn)
+modselnew <- model.sel(mod1new, mod2new, mod3new, mod3new.i, mod4new, mod5new, mod6new, mod7new, mod7new.i, mod8new, mod8new.i, mod9new, mod9new.i, mod9new.ii, mod10new, mod10new.i, mod10new.ii, mod11new, mod12new, mod12new.i, mod13new, mod14new, mod14new.i, mod14new.ii, mod15new, mod16new, mod17new, mod17new.i, mod18new, mod19new, mod20new, mod21new, mod22new, mod23new, mod24new, mod25new, mod26new, mod27new, mod28new, mod29new, mod30new, mod31new, mod32new, mod33new, mod34new, mod35new, mod36new, mod37new, mod38new, mod39new, mod40new, mod41new, mod42new, mod43new, mod44new, mod45new, mod46new, mod47new, mod48new, mod49new, mod50new, mod51new, mod52new, mod53new)
+modselnew <- model.sel(mod1new, mod2new)
+?model.sel
+modselnew
+```
+Summer and winter
+```{r}
+#summer
+mod48newsum <- fit_clogit(case_ ~ summer_TRI_50 * summer_mixed_2000 +
+                        summer_slope_500 + summer_elevation +
+                        summer_aspect_2000 + summer_NDVI_mar21 +
+                        summer_NDWI_mar21 + summer_distance_to_forest_edge +
+                        summer_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = steps_bison_summer, model = TRUE)
+#winter
+mod48newwint <- fit_clogit(case_ ~ winter_TRI_50 * winter_mixed_2000 +
+                        winter_slope_500 + winter_elevation +
+                        winter_aspect_2000 + winter_NDVI_mar21 +
+                        winter_NDWI_mar21 + winter_distance_to_forest_edge +
+                        winter_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = steps_bison_winter, model = TRUE)
+steps_bison_bunea <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/steps_bison_bunea.csv")
+steps_bison_leresti <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/steps_bison_leresti.csv")
+mod50newbunea <- fit_clogit(case_ ~ bunea_TRI_50 * bunea_broad_2000 +
+                        bunea_slope_500 + bunea_elevation +
+                        bunea_aspect_2000 + bunea_NDVI_mar21 +
+                        bunea_NDWI_mar21 + bunea_distance_to_forest_edge +
+                        bunea_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = steps_bison_bunea, model = TRUE)
+mod50newleresti <- fit_clogit(case_ ~ leresti_TRI_50 * leresti_broad_2000 +
+                        leresti_slope_500 + leresti_elevation +
+                        leresti_aspect_2000 + leresti_NDVI_mar21 +
+                        leresti_NDWI_mar21 + leresti_distance_to_forest_edge +
+                        leresti_distance_to_release_sites + cluster(id) + scale(sl_) +
+                        strata(step_id_), method = 'approximate', data = steps_bison_leresti, model = TRUE)
+```
+
+

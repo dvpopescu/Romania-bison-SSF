@@ -1,0 +1,863 @@
+---
+title: "predictor_variables"
+author: "Lucy Holland"
+date: "2023-09-14"
+output: html_document
+---
+Load packages
+```{r packages}
+library(dplyr)
+library(ggplot2)
+library(amt)
+library(raster)
+library(mapview)
+install.packages("raster")
+install.packages("rgdal")
+install.packages("sp")
+install.packages("maptools")
+install.packages("rgeos")
+install.packages('terra', repos='https://rspatial.r-universe.dev')
+install.packages("rlang")
+install.packages("dplyr")
+install.packages("adehabitatLT")
+
+library(raster)
+library(sp)
+library(rgdal)
+library(maptools)
+library(rgeos)
+library(terra)
+library(rlang)
+library(dplyr)
+library(adehabitatLT)
+
+```
+
+Import the layers to be stacked
+```{r import layers}
+#Physical barriers
+dams <- readOGR("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/New layers and buffers/dam.shp")
+distance_to_roads <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Distance to layers/Euclidian distance rasters/Roads_clipped.tif")
+distance_to_settlements <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Distance to layers/Euclidian distance rasters/towns.tif")
+#Environmental variables/ Land use
+broadleaf_forest <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/CLC forest layers/CLC_Broad_leaved_forest.tif")
+distance_to_forest_edge <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Distance to layers/Euclidian distance rasters/forest_200m.tif")
+distance_to_riparian <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Distance to layers/Euclidian distance rasters/large_streams.tif")
+distance_to_rivers <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Distance to layers/Euclidian distance rasters/EucDist_Rivers.tif")
+NDVI_aug_2020 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/August 2020 NDVI.tif")
+NDVI_march_2021 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/March 2020 NDVI.tif")
+NDWI_aug_2020 <-raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/August 2020 NDWI.tif")
+NDWI_march_2021 <-raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/March 2020 NDWI.tif")
+#Topographic variables
+elevation <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/Elevation.tif")
+slope <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/Slope.tif")
+aspect <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/GEE outputs/Aspect.tif")
+TRI_10 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/TRI_10_radius.tif")
+TRI_33 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/TRI/TRI_33_30m.tif")
+TRI_50 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/TRI/TRI_50_radius.tif")
+#other
+distance_to_release_sites <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Distance to layers/Euclidian distance rasters/release_sites1.tif")
+
+#MWA layers
+#Broadleaf forest
+MWA_broad_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/broad.forest_2000m.tif")
+MWA_broad_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/broad.forest_1000m.tif")
+MWA_broad_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/broad.forest_500m.tif")
+#Coniferous forest
+MWA_coniferous_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.coniferous.forest_2000m.tif")
+MWA_coniferous_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.coniferous.forest_1000m.tif")
+MWA_coniferous_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.coniferous.forest_500m.tif")
+#Mixed forest
+MWA_mixed_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.mixed.forest_2000m.tif")
+MWA_mixed_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.mixed.forest_1000m.tif")
+MWA_mixed_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.mixed.forest_500m.tif")
+#natural grasslands
+MWA_ngrass_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.natgrassland_2000m.tif")
+MWA_ngrass_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.natgrassland_1000m_new.tif")
+MWA_ngrass_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.natgrassland_500m.tif")
+#Human-managed grasslands
+MWA_hmgrass_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.hmgrassland_reclassified_2000m.tif")
+MWA_hmgrass_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.hmgrassland_reclassified_1000m.tif")
+MWA_hmgrass_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.hmgrassland_reclassified_500m.tif")
+#transitional habitat
+MWA_transitional_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.transitional_reclassified_2000m.tif")
+MWA_transitional_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.transitional_reclassified_1000m_new.tif")
+MWA_transitional_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.transitional_reclassified_500m.tif")
+#Urban
+MWA_urban_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.urban_reclassified_2000m.tif")
+MWA_urban_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.urban_reclassified_1000m.tif")
+MWA_urban_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.urban_reclassified_500m.tif")
+#All grassland
+MWA_grasslands_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.grasslands_2000m.tif")
+MWA_grasslands_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.grasslands_1000m.tif")
+MWA_grasslands_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/CLC forest layers/MWA.grassland_500m.tif")
+#Slope
+MWA_slope_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.slope_2000m.tif")
+MWA_slope_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.slope_1000m.tif")
+MWA_slope_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.slope_500m.tif")
+#Aspect
+MWA_aspect_2000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.aspect_2000m.tif")
+MWA_aspect_1000 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.aspect_1000m.tif")
+MWA_aspect_500 <- raster("/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Moving window analysis/MWA.aspect_500m.tif")
+```
+Plot the rasters
+```{r Plots}
+install.packages("rasterVis")
+library(rasterVis)
+
+# Create a layout for plotting
+layout(matrix(c(1, 2), nrow = 1))  # 1 row, 2 columns
+
+# Plot the first raster layer
+plot()
+
+# Add the second raster layer on top
+plot(MWA_urban_2000, add = TRUE)
+```
+Remove NA values
+```{r remove NA}
+#This has been done previously so the imported GPS location data already has na values removed
+#remove rows with NA
+#filtered_data_na <- na.omit(filtered_data)
+#export the dataframe without any na values
+write.csv(filtered_data_na, "~/Desktop/Lucy/GPS data (NEW)/Enclosure filtered//filtered_data_na.csv", row.names=TRUE)
+```
+
+Import GPS data
+```{r GPS data}
+filtered_data <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Enclosure filtered/filtered_data_32635.csv")
+View(filtered_data)
+require(rgdal)
+filtered_data_shp <- readOGR(dsn = "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Enclosure filtered/filtered_data_32635.shp")
+gps_points_shp <- shapefile("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Enclosure filtered/filtered_data_32635.shp")
+
+# Create spatial points using UTM coords (not long/lat)
+gps_points <- SpatialPoints(coords = filtered_data[, c("longitude", "latitude")], proj4string = CRS(proj4string(distance_to_roads)))
+#coordinates(gps_points) <- c("x", "y")
+
+#below code for checking CRS
+#lonlat <-data.frame(cbind(long,lat))
+#lonlat_sp = SpatialPoints(coords = filtered_data[, c("x", "y")], proj4string=CRS("+init=epsg:32635"))
+```
+Plot GPS data on raster layer
+```{r Plot GPS}
+# Plot the first raster layer
+plot(gps_points)
+# Add the second raster layer on top
+plot(MWA_coniferous_1000, add = TRUE)
+
+#test <- extract(MWA_aspect_1000, gps_points, sp = T)
+```
+Extraction
+```{r}
+# Extract values from raster layers at GPS points
+distance_to_roads_points<- extract(distance_to_roads, gps_points_shp)
+distance_to_settlements_points<- extract(distance_to_settlements, gps_points_shp)
+broadleaf_forest_points<- extract(broadleaf_forest, gps_points_shp)
+distance_to_forest_edge_points<- extract(distance_to_forest_edge, gps_points_shp)
+distance_to_riparian_points<- extract(distance_to_riparian, gps_points_shp)
+distance_to_rivers_points<- extract(distance_to_rivers, gps_points_shp)
+NDVI_aug_2020_points<- extract(NDVI_aug_2020, gps_points_shp)
+NDVI_march_2021_points<- extract(NDVI_march_2021, gps_points_shp)
+NDWI_aug_2020_points<- extract(NDWI_aug_2020, gps_points_shp)
+NDWI_march_2021_points<- extract(NDWI_march_2021, gps_points_shp)
+elevation_points<- extract(elevation, gps_points_shp)
+slope_points<- extract(slope, gps_points_shp)
+aspect_points<- extract(aspect, gps_points_shp)
+TRI_10_points<- extract(TRI_10, gps_points_shp)
+TRI_33_points<- extract(TRI_33, gps_points_shp)
+TRI_50_points<- extract(TRI_50, gps_points_shp)
+distance_to_release_sites_points<- extract(distance_to_release_sites, gps_points_shp)
+MWA_broad_2000_points<- extract(MWA_broad_2000, gps_points_shp)
+MWA_broad_1000_points<- extract(MWA_broad_1000, gps_points_shp)
+MWA_broad_500_points<- extract(MWA_broad_500, gps_points_shp)
+MWA_coniferous_2000_points<- extract(MWA_coniferous_2000, gps_points_shp)
+MWA_coniferous_1000_points<- extract(MWA_coniferous_1000, gps_points_shp)
+MWA_coniferous_500_points<- extract(MWA_coniferous_500, gps_points_shp)
+MWA_mixed_2000_points<- extract(MWA_mixed_2000, gps_points_shp)
+MWA_mixed_1000_points<- extract(MWA_mixed_1000, gps_points_shp)
+MWA_mixed_500_points<- extract(MWA_mixed_500, gps_points_shp)
+MWA_ngrass_2000_points<- extract(MWA_ngrass_2000, gps_points_shp)
+MWA_ngrass_1000_points<- extract(MWA_ngrass_1000, gps_points_shp)
+MWA_ngrass_500_points<- extract(MWA_ngrass_500, gps_points_shp)
+MWA_hmgrass_2000_points<- extract(MWA_hmgrass_2000, gps_points_shp)
+MWA_hmgrass_1000_points<- extract(MWA_hmgrass_1000, gps_points_shp)
+MWA_hmgrass_500_points<- extract(MWA_hmgrass_500, gps_points_shp)
+MWA_transitional_2000_points<- extract(MWA_transitional_2000, gps_points_shp)
+MWA_transitional_1000_points<- extract(MWA_transitional_1000, gps_points_shp)
+MWA_transitional_500_points<- extract(MWA_transitional_500, gps_points_shp)
+MWA_urban_2000_points<- extract(MWA_urban_2000, gps_points_shp)
+MWA_urban_1000_points<- extract(MWA_urban_1000, gps_points_shp)
+MWA_urban_500_points<- extract(MWA_urban_500, gps_points_shp)
+MWA_grasslands_2000_points<- extract(MWA_grasslands_2000, gps_points_shp)
+MWA_grasslands_1000_points<- extract(MWA_grasslands_1000, gps_points_shp)
+MWA_grasslands_500_points<- extract(MWA_grasslands_500, gps_points_shp)
+MWA_slope_2000_points<- extract(MWA_slope_2000, gps_points_shp)
+MWA_slope_1000_points<- extract(MWA_slope_1000, gps_points_shp)
+MWA_slope_500_points<- extract(MWA_slope_500, gps_points_shp)
+MWA_aspect_2000_points<- extract(MWA_aspect_2000, gps_points_shp)
+MWA_aspect_1000_points<- extract(MWA_aspect_1000, gps_points_shp)
+MWA_aspect_500_points<- extract(MWA_aspect_500, gps_points_shp)
+```
+
+```{r bind}
+# Create a data frame with the extracted values
+#extracted_data <- data.frame(
+#  Latitude = gps_points$latitude, 
+#  Longitude = gps_points$longitude, 
+#  MWA_aspect_2000 = MWA_aspect_2000,
+#  MWA_slope_2000 = MWA_slope_2000
+#)
+extracted_data <- cbind.data.frame(gps_points@coords,distance_to_roads_points,distance_to_settlements_points,broadleaf_forest_points,distance_to_forest_edge_points,distance_to_riparian_points,distance_to_rivers_points,NDVI_aug_2020_points,NDVI_march_2021_points,NDWI_aug_2020_points,NDWI_march_2021_points,elevation_points,slope_points,aspect_points,TRI_10_points,TRI_33_points,TRI_50_points,distance_to_release_sites_points,MWA_broad_2000_points,MWA_broad_1000_points,MWA_broad_500_points,MWA_coniferous_2000_points,MWA_coniferous_1000_points,MWA_coniferous_500_points,MWA_mixed_2000_points,MWA_mixed_1000_points,MWA_mixed_500_points,MWA_ngrass_2000_points,MWA_ngrass_1000_points,MWA_ngrass_500_points,MWA_hmgrass_2000_points,MWA_hmgrass_1000_points,MWA_hmgrass_500_points,MWA_transitional_2000_points,MWA_transitional_1000_points,MWA_transitional_500_points,MWA_urban_2000_points,MWA_urban_1000_points,MWA_urban_500_points,MWA_grasslands_2000_points,MWA_grasslands_1000_points,MWA_grasslands_500_points,MWA_slope_2000_points,MWA_slope_1000_points,MWA_slope_500_points,MWA_aspect_2000_points,MWA_aspect_1000_points,MWA_aspect_500_points)
+# Print the first few rows of the extracted data frame
+head(extracted_data)
+#checking individual raster layers
+summary(MWA_urban_2000_points)
+summary(MWA_urban_1000_points)
+summary(MWA_urban_500_points)
+summary(broadleaf_forest_points)
+summary(distance_to_forest_edge_points)
+summary(MWA_broad_500_points)
+summary(MWA_hmgrass_2000_points)
+summary(MWA_hmgrass_1000_points)
+summary(MWA_hmgrass_500_points)
+summary(MWA_transitional_2000_points)
+summary(MWA_transitional_1000_points)
+summary(MWA_transitional_500_points)
+boxplot(distance_to_roads_points)
+summary(distance_to_settlements_points)
+```
+export the table of extracted raster values 
+```{r export table}
+write.csv(extracted_data, "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Extracted data/extracted_data.csv", row.names = FALSE)
+#extracted_data <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Extracted data/extracted_data.csv")
+```
+Correlation matrix
+```{r}
+correlation_matrix <- cor(extracted_data[, -c(1, 2)])  # Exclude the x and y columns
+```
+Export the correlation matrix
+```{r}
+install.packages("writexl")
+library(writexl)
+# Convert the correlation matrix to a data frame
+correlation_matrix_df <- as.data.frame(correlation_matrix)
+
+write_xlsx(correlation_matrix_df, path = "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/Extracted data/correlation_matrix.xlsx")
+```
+Visualise the correlation matrix
+```{r}
+install.packages("corrplot")
+library(corrplot)
+
+# Create a heatmap of the correlation matrix
+corrplot(correlation_matrix, method = "color",tl.cex = 0.3)
+```
+identifying pairs above/below a threshold
+```{r}
+correlation_threshold <- 0.7
+# Identify the pairs of raster layers that meet your threshold criteria using nested loop
+correlation_pairs <- list()
+
+for (i in 1:(ncol(correlation_matrix) - 1)) {
+  for (j in (i + 1):ncol(correlation_matrix)) {
+    if (correlation_matrix[i, j] > correlation_threshold || correlation_matrix[i, j] < -correlation_threshold) {
+      layer1_name <- rownames(correlation_matrix)[i]
+      layer2_name <- rownames(correlation_matrix)[j]
+      pair_name <- paste(layer1_name, "_", layer2_name, sep = "")
+      correlation_pairs[[pair_name]] <- correlation_matrix[i, j]
+    }
+  }
+}
+
+# Print the identified pairs and their correlation values
+for (pair_name in names(correlation_pairs)) {
+  cat("Pair:", pair_name, ", Correlation:", correlation_pairs[[pair_name]], "\n")
+}
+#Identify pairs below -0.7 in the matrix using nested loop
+correlation_threshold_neg <- -0.7
+correlation_pairs_below_threshold <- list()
+
+for (i in 1:(ncol(correlation_matrix) - 1)) {
+  for (j in (i + 1):ncol(correlation_matrix)) {
+    if (correlation_matrix[i, j] < correlation_threshold_neg) {
+      layer1_name <- rownames(correlation_matrix)[i]
+      layer2_name <- rownames(correlation_matrix)[j]
+      pair_name <- paste(layer1_name, "_", layer2_name, sep = "")
+      correlation_pairs_below_threshold[[pair_name]] <- correlation_matrix[i, j]
+    }
+  }
+}
+
+# Print or further process the identified pairs and their correlation values
+if (length(correlation_pairs_below_threshold) > 0) {
+  cat("Pairs with correlation values below -0.7:\n")
+  for (pair_name in names(correlation_pairs_below_threshold)) {
+    cat("Pair:", pair_name, ", Correlation:", correlation_pairs_below_threshold[[pair_name]], "\n")
+  }
+} else {
+  cat("No pairs with correlation values below -0.7 found.\n")
+}
+```
+MWA models
+We will be removing the following variables from all models:
+distance to settlements
+grasslands (keep human managed grasslands and natural grasslands)
+coniferous forest
+distance to rivers (keeping distance to riparian zones)
+(slope will be kept at the finest scale)
+remove TRI_10_points
+remove slope and aspect (not MWA)
+```{r}
+#Load required libraries
+library(adehabitatLT)
+
+#extract columns for each SSF
+rasters_2000 <- subset(extracted_data, select = c("TRI_50_points","MWA_broad_2000_points","MWA_mixed_2000_points","MWA_ngrass_2000_points","MWA_hmgrass_2000_points","MWA_transitional_2000_points","MWA_urban_2000_points","MWA_aspect_2000_points"))
+
+rasters_1000 <-subset(extracted_data, select = c("TRI_33_points","MWA_broad_1000_points","MWA_mixed_1000_points","MWA_ngrass_1000_points","MWA_hmgrass_1000_points","MWA_transitional_1000_points","MWA_urban_1000_points","MWA_aspect_1000_points"))
+
+rasters_500 <-subset(extracted_data, select = c("TRI_33_points","MWA_broad_500_points","MWA_mixed_500_points","MWA_ngrass_500_points","MWA_hmgrass_500_points","MWA_transitional_500_points","MWA_urban_500_points","MWA_aspect_500_points"))
+```
+Before we put the rasters into any regression model, they need to be scaled
+```{r Scaling}
+distance_to_roads_scaled<- scale(distance_to_roads)
+broadleaf_forest_scaled<- scale(broadleaf_forest)
+distance_to_forest_edge_scaled<- scale(distance_to_forest_edge)
+distance_to_riparian_scaled<- scale(distance_to_riparian)
+NDVI_aug_2020_scaled<- scale(NDVI_aug_2020)
+NDVI_march_2021_scaled<- scale(NDVI_march_2021)
+NDWI_aug_2020_scaled<- scale(NDWI_aug_2020)
+NDWI_march_2021_scaled<- scale(NDWI_march_2021)
+elevation_scaled<- scale(elevation)
+TRI_33_scaled<- scale(TRI_33)
+TRI_50_scaled<- scale(TRI_50)
+distance_to_release_sites_scaled<- scale(distance_to_release_sites)
+MWA_broad_2000_scaled<- scale(MWA_broad_2000)
+MWA_broad_1000_scaled<- scale(MWA_broad_1000)
+MWA_broad_500_scaled<- scale(MWA_broad_500)
+MWA_mixed_2000_scaled<- scale(MWA_mixed_2000)
+MWA_mixed_1000_scaled<- scale(MWA_mixed_1000)
+MWA_mixed_500_scaled<- scale(MWA_mixed_500)
+MWA_ngrass_2000_scaled<- scale(MWA_ngrass_2000)
+MWA_ngrass_1000_scaled<- scale(MWA_ngrass_1000)
+MWA_ngrass_500_scaled<- scale(MWA_ngrass_500)
+MWA_hmgrass_2000_scaled<- scale(MWA_hmgrass_2000)
+MWA_hmgrass_1000_scaled<- scale(MWA_hmgrass_1000)
+MWA_hmgrass_500_scaled<- scale(MWA_hmgrass_500)
+MWA_transitional_2000_scaled<- scale(MWA_transitional_2000)
+MWA_transitional_1000_scaled<- scale(MWA_transitional_1000)
+MWA_transitional_500_scaled<- scale(MWA_transitional_500)
+MWA_urban_2000_scaled<- scale(MWA_urban_2000)
+MWA_urban_1000_scaled<- scale(MWA_urban_1000)
+MWA_urban_500_scaled<- scale(MWA_urban_500)
+MWA_slope_500_scaled<- scale(MWA_slope_500)
+MWA_aspect_2000_scaled<- scale(MWA_aspect_2000)
+MWA_aspect_1000_scaled<- scale(MWA_aspect_1000)
+MWA_aspect_500_scaled<- scale(MWA_aspect_500)
+```
+Making tracks
+```{r data cleaning}
+filtered_data_track <- filtered_data %>%
+select(x = longitude, y = latitude,
+t = t, id = Collar.ID)
+#filtered_data_track <- filtered_data_track %>% filter(id == 39649)
+#check the columns
+class(filtered_data_track$x)
+class(filtered_data_track$y)
+class(filtered_data_track$t)
+#Change the class of the timestamp
+filtered_data_track$t <- as.POSIXct(filtered_data_track$t, format = "%Y-%m-%d %H:%M:%S")
+
+test <- is.na(filtered_data_track$t)
+na_count <- sum(test)
+na_count
+#141
+#remove NA values from timestamp
+filtered_data_track <- na.omit(filtered_data_track)
+```
+
+```{r Making tracks}
+tr1 <- make_track(filtered_data_track, x, y, t, id = id, crs = 32635)
+is.data.frame(tr1)
+class(tr1)
+summarize_sampling_rate(tr1)
+```
+
+```{r Group track by id and nest the track}
+tr1 <- tr1 |> nest(data = -"id")
+tr1
+```
+#Resample
+#nb: A burst is sequence of relocations with equal sampling rates. Consider the following hypothetical example: 5 relocations are all 6 hours apart. Then there is a gap of 12 hours because one relocation failed and afterwards then there are an other 10 relocations all 6 hours apart. Then we would consider the first 5 relocations as a burst and the second 10 relocations (after the 12 hour gap) as a second burst.
+```{r resample}
+#summarize_sampling_rate(filtered_data_track)
+#tr2 <- tr1 |> track_resample(rate = hours(4))
+
+# get the data for the first animal
+x <- tr1$data[[1]]
+
+# apply the data analysis
+x |> track_resample(rate = hours(4), tolerance = minutes(1)) |>
+  steps_by_burst()
+```
+We now want to apply exactly the same logic to all animals. We can do this by using a map and save the results to a new column using mutate.
+```{r}
+tr2 <- tr1 |> 
+  mutate(steps = map(data, function(x) 
+    x |> track_resample(rate = hours(4), tolerance = minutes(1)) |> steps_by_burst()))
+
+tr2
+```
+select id and steps, unnest the new data_frame and create a plot of the step-length distributions
+```{r}
+tr2 |> dplyr::select(id, steps) |> unnest(cols = steps) |> 
+  ggplot(aes(sl_, fill = factor(id))) + geom_density(alpha = 0.4)
+  
+#str(tr2)
+```
+Repeat for just one indivual
+```{r isolating 39649}
+#trackdf <- tr2 |> dplyr::select(id, steps) |> unnest(cols = steps)
+#trackdf_39649 <-subset(trackdf, id == 39649)
+
+tr1_39649 <- make_track(filtered_data_track, x, y, t, id = id, crs = 32635)
+ssf_39649 <- tr1_39649 |> track_resample(rate = hours(4), tolerance = minutes(1)) |>
+  steps_by_burst()
+
+```
+
+Extracting scaled covariates
+```{r extracting scaled covariates}
+class(tr1_39649)
+ssf_39649 <- ssf_39649 |> random_steps(n_control = 5)
+#ssf_39649 <- ssf_39649 |> extract_covariates(MWA_broad_2000_scaled)
+View(ssf_39649)
+
+#2000
+# List of raster objects
+raster_list <- list(TRI_50_scaled,MWA_broad_2000_scaled,MWA_mixed_2000_scaled,MWA_ngrass_2000_scaled,MWA_hmgrass_2000_scaled,MWA_transitional_2000_scaled,MWA_urban_2000_scaled,MWA_aspect_2000_scaled)
+
+# Initialize an empty list to store the extracted covariates
+covariates_list <- list()
+
+# Loop through each raster and extract covariates
+for (raster in raster_list) {
+  covariates <- ssf_39649 |> extract_covariates(raster)
+  covariates_list <- append(covariates_list, list(covariates))
+}
+
+ssf_39649_full <- cbind(ssf_39649, do.call(cbind, covariates_list))
+#subset large dataframe without excess columns in excel
+library(writexl)
+write.csv(ssf_39649_full, file = "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/SSF/ssf_39649_full.csv")
+#Import subsetted dataframe
+ssf_39649_clean <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/SSF/ssf_39649_full.csv")
+
+#1000
+# List of raster objects
+raster_list_1000 <- list(TRI_33_scaled,MWA_broad_1000_scaled,MWA_mixed_1000_scaled,MWA_ngrass_1000_scaled,MWA_hmgrass_1000_scaled,MWA_transitional_1000_scaled,MWA_urban_1000_scaled,MWA_aspect_1000_scaled)
+
+# Initialize an empty list to store the extracted covariates
+covariates_list_1000 <- list()
+
+# Loop through each raster and extract covariates
+for (raster in raster_list_1000) {
+  covariates_1000 <- ssf_39649 |> extract_covariates(raster)
+  covariates_list_1000 <- append(covariates_list_1000, list(covariates_1000))
+}
+
+ssf_39649_1000 <- cbind(ssf_39649, do.call(cbind, covariates_list_1000))
+#subset large dataframe without excess columns in excel
+library(writexl)
+write.csv(ssf_39649_1000, file = "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/SSF/ssf_39649_1000.csv")
+#Import subsetted dataframe
+ssf_39649_1000_clean <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/SSF/ssf_39649_1000.csv")
+#500
+# List of raster objects
+raster_list_500 <- list(TRI_33_scaled,MWA_broad_500_scaled,MWA_mixed_500_scaled,MWA_ngrass_500_scaled,MWA_hmgrass_500_scaled,MWA_transitional_500_scaled,MWA_urban_500_scaled,MWA_aspect_500_scaled)
+
+# Initialize an empty list to store the extracted covariates
+covariates_list_500 <- list()
+
+# Loop through each raster and extract covariates
+for (raster in raster_list_500) {
+  covariates_500 <- ssf_39649 |> extract_covariates(raster)
+  covariates_list_500 <- append(covariates_list_500, list(covariates_500))
+}
+
+ssf_39649_500 <- cbind(ssf_39649, do.call(cbind, covariates_list_500))
+#subset large dataframe without excess columns in excel
+library(writexl)
+write.csv(ssf_39649_500, file = "/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/SSF/ssf_39649_500.csv")
+#Import subsetted dataframe
+ssf_39649_500_clean <- read.csv("/Users/lucyholland/Desktop/Lucy/GPS data (NEW)/SSF/ssf_39649_500.csv")
+```
+SSFs
+```{rSSF for one individual}
+m2000 <- ssf_39649_clean |> fit_clogit(case_ ~ TRI_50_radius + MWA_broad_2000_scaled + MWA_mixed_2000_scaled + MWA_ngrass_2000_scaled + MWA_hmgrass_2000_scaled + MWA_transitional_2000_scaled + MWA_urban_2000_scaled + MWA_aspect_2000_scaled + strata(step_id_))
+m1000 <- ssf_39649_1000_clean |> fit_clogit(case_ ~ TRI_33_scaled + MWA_broad_1000_scaled + MWA_mixed_1000_scaled + MWA_ngrass_1000_scaled + MWA_hmgrass_1000_scaled + MWA_transitional_1000_scaled + MWA_urban_1000_scaled + MWA_aspect_1000_scaled + strata(step_id_))
+m500 <- ssf_39649_500_clean |> fit_clogit(case_ ~ TRI_33_scaled + MWA_broad_500_scaled + MWA_mixed_500_scaled + MWA_ngrass_500_scaled + MWA_hmgrass_500_scaled + MWA_transitional_500_scaled + MWA_urban_500_scaled + MWA_aspect_500_scaled + strata(step_id_))
+summary(m2000)
+summary(m1000)
+summary(m500)
+```
+Comparing models
+```{r AIC}
+# Calculate the AIC values for each model
+aic2000 <- AIC(m2000)
+aic1000 <- AIC(m1000)
+aic500 <- AIC(m500)
+
+# Compare the AIC values to determine the best model
+model_names <- c("MWA 2000", "MWA 1000", "MWA 500")
+aic_values <- c(aic2000, aic1000, aic500)
+
+#Create a df to display and compare the AIC values
+model_comparison <- data.frame(Model = model_names, AIC = aic_values)
+print(model_comparison)
+#Lower AIC values indicate a better fit
+#best model is MWA 1000
+```
+###########################################################################
+SSF using all animal tracks
+```{r SSF all tracks}
+install.packages("adehabitatHR")
+install.packages("sjPlot")
+library(adehabitatHR)
+library(sjPlot)
+pcks <- list("sp", "sf", "raster", "rgdal", "rgeos", "ggmap", "adehabitatHR", "sjPlot")
+sapply(pcks, require, char = TRUE)
+```
+
+```{r making tracks}
+PU39649 <- filtered_data %>%
+dplyr::select(x = longitude, y = latitude,
+t = t, id = Collar.ID) %>%
+  filter(id=="39649")
+class(PU39649$t)
+#Change the class of the timestamp
+PU39649$t <- as.POSIXct(PU39649$t, format = "%Y-%m-%d %H:%M:%S")
+#remove NA values from timestamp
+PU39649 <- na.omit(PU39649)
+
+track1 <- mk_track(PU39649, x, y, t, crs = 32635)
+summarize_sampling_rate(track1)
+#resample
+track1 <- track1 |> track_resample(rate = hours(4))
+summarize_sampling_rate(track1)
+```
+#step length distribution
+```{r}
+steps.1 <- step_lengths(track1)
+hist(steps.1, breaks = 30, main="Histogram of step lengths", xlab="Step lengths")
+```
+Create steps from points
+```{r}
+true.steps1 <- steps(track1)
+true.steps1
+```
+Creating 5 random (available) steps per used step
+```{r}
+true.random.steps1 <- random_steps(true.steps1, n = 5)
+```
+Extract covariates
+```{r}
+library(terra)
+library(raster)
+#Export rasters for cropping in QGIS
+test <- crop(TRI_33_scaled, broadleaf_forest_scaled,snap = "near")
+extent(test)
+extent(TRI_33_scaled)
+extent(broadleaf_forest_scaled)
+summary(broadleaf_forest_scaled)
+writeRaster(TRI_33_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/TRI_33_scaled.tif", format = "GTiff")
+writeRaster(TRI_50_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/TRI_50_scaled.tif", format = "GTiff")
+writeRaster(distance_to_roads_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/distance_to_roads_scaled.tif", format = "GTiff")
+writeRaster(broadleaf_forest_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/broadleaf_forest_scaled.tif", format = "GTiff")
+writeRaster(distance_to_forest_edge_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/distance_to_forest_edge_scaled.tif", format = "GTiff")
+writeRaster(distance_to_riparian_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/distance_to_riparian_scaled.tif", format = "GTiff")
+writeRaster(NDVI_aug_2020_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/NDVI_aug_2020_scaled.tif", format = "GTiff")
+writeRaster(NDVI_march_2021_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/NDVI_march_2021_scaled.tif", format = "GTiff")
+writeRaster(NDWI_aug_2020_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/NDWI_aug_2020_scaled.tif", format = "GTiff")
+writeRaster(NDWI_march_2021_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/NDWI_march_2021_scaled.tif", format = "GTiff")
+writeRaster(elevation_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/elevation_scaled.tif", format = "GTiff")
+writeRaster(distance_to_release_sites_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/distance_to_release_sites_scaled.tif", format = "GTiff")
+writeRaster(MWA_broad_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_broad_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_broad_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_broad_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_broad_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_broad_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_mixed_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_mixed_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_mixed_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_mixed_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_mixed_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_mixed_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_ngrass_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_ngrass_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_ngrass_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_ngrass_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_ngrass_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_ngrass_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_hmgrass_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_hmgrass_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_hmgrass_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_hmgrass_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_hmgrass_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_hmgrass_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_transitional_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_transitional_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_transitional_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_transitional_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_transitional_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_transitional_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_urban_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_urban_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_urban_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_urban_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_urban_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_urban_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_slope_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_slope_500_scaled.tif", format = "GTiff")
+writeRaster(MWA_aspect_2000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_aspect_2000_scaled.tif", format = "GTiff")
+writeRaster(MWA_aspect_1000_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_aspect_1000_scaled.tif", format = "GTiff")
+writeRaster(MWA_aspect_500_scaled, "/Users/lucyholland/Desktop/Lucy/QGIS (NEW)/Scaled rasters/MWA_aspect_500_scaled.tif", format = "GTiff")
+```
+NOT WORKING-(wrong raster extent but cannot be clipped as some rasters will not clip)
+```{r}
+#stack covariates to be used in MWA SSF
+covariates_MWA <- stack(TRI_33_scaled,TRI_50_scaled,MWA_broad_2000_scaled,MWA_mixed_2000_scaled,MWA_ngrass_2000_scaled,MWA_hmgrass_2000_scaled,MWA_transitional_2000_scaled,MWA_urban_2000_scaled,MWA_aspect_2000_scaled,MWA_broad_1000_scaled,MWA_mixed_1000_scaled,MWA_ngrass_1000_scaled,MWA_hmgrass_1000_scaled,MWA_transitional_1000_scaled,MWA_urban_1000_scaled,MWA_aspect_1000_scaled,MWA_broad_500_scaled,MWA_mixed_500_scaled,MWA_ngrass_500_scaled,MWA_hmgrass_500_scaled,MWA_transitional_500_scaled,MWA_urban_500_scaled,MWA_aspect_500_scaled)
+covariates_MWA <- merge(covariates_MWA)
+```
+
+```{r}
+library(dplyr)
+
+# List of raster layers
+raster_list <- list(TRI_33_scaled,TRI_50_scaled,MWA_broad_2000_scaled,MWA_mixed_2000_scaled,MWA_ngrass_2000_scaled,MWA_hmgrass_2000_scaled,MWA_transitional_2000_scaled,MWA_urban_2000_scaled,MWA_aspect_2000_scaled,MWA_broad_1000_scaled,MWA_mixed_1000_scaled,MWA_ngrass_1000_scaled,MWA_hmgrass_1000_scaled,MWA_transitional_1000_scaled,MWA_urban_1000_scaled,MWA_aspect_1000_scaled,MWA_broad_500_scaled,MWA_mixed_500_scaled,MWA_ngrass_500_scaled,MWA_hmgrass_500_scaled,MWA_transitional_500_scaled,MWA_urban_500_scaled,MWA_aspect_500_scaled)
+```
+Extract covariates then combine into a dataframe 
+```{r}
+ssf_TRI_33 <- true.random.steps1 %>% extract_covariates(TRI_33_scaled) %>%
+  dplyr::select(12)
+ssf_TRI_50 <- true.random.steps1 %>% extract_covariates(TRI_50_scaled) %>%
+  dplyr::select(12)
+ssf_broad_2000 <- true.random.steps1 %>% extract_covariates(MWA_broad_2000_scaled) %>%
+  dplyr::select(12)
+ssf_mixed_2000 <- true.random.steps1 %>% extract_covariates(MWA_mixed_2000_scaled) %>%
+  dplyr::select(12)
+ssf_ngrass_2000 <- true.random.steps1 %>% extract_covariates(MWA_ngrass_2000_scaled) %>%
+  dplyr::select(12)
+ssf_hmgrass_2000 <- true.random.steps1 %>% extract_covariates(MWA_hmgrass_2000_scaled) %>%
+  dplyr::select(12)
+ssf_transitional_2000 <- true.random.steps1 %>% extract_covariates(MWA_transitional_2000_scaled) %>%
+  dplyr::select(12)
+ssf_urban_2000 <- true.random.steps1 %>% extract_covariates(MWA_urban_2000_scaled) %>%
+  dplyr::select(12)
+ssf_aspect_2000 <- true.random.steps1 %>% extract_covariates(MWA_aspect_2000_scaled) %>%
+  dplyr::select(12)
+ssf_broad_1000 <- true.random.steps1 %>% extract_covariates(MWA_broad_1000_scaled) %>%
+  dplyr::select(12)
+ssf_mixed_1000 <- true.random.steps1 %>% extract_covariates(MWA_mixed_1000_scaled) %>%
+  dplyr::select(12)
+ssf_ngrass_1000 <- true.random.steps1 %>% extract_covariates(MWA_ngrass_1000_scaled) %>%
+  dplyr::select(12)
+ssf_hmgrass_1000 <- true.random.steps1 %>% extract_covariates(MWA_hmgrass_1000_scaled) %>%
+  dplyr::select(12)
+ssf_transitional_1000 <- true.random.steps1 %>% extract_covariates(MWA_transitional_1000_scaled) %>%
+  dplyr::select(12)
+ssf_urban_1000 <- true.random.steps1 %>% extract_covariates(MWA_urban_1000_scaled) %>%
+  dplyr::select(12)
+ssf_aspect_1000 <- true.random.steps1 %>% extract_covariates(MWA_aspect_1000_scaled) %>%
+  dplyr::select(12)
+ssf_broad_500 <- true.random.steps1 %>% extract_covariates(MWA_broad_500_scaled) %>%
+  dplyr::select(12)
+ssf_mixed_500 <- true.random.steps1 %>% extract_covariates(MWA_mixed_500_scaled) %>%
+  dplyr::select(12)
+ssf_ngrass_500 <- true.random.steps1 %>% extract_covariates(MWA_ngrass_500_scaled) %>%
+  dplyr::select(12)
+ssf_hmgrass_500 <- true.random.steps1 %>% extract_covariates(MWA_hmgrass_500_scaled) %>%
+  dplyr::select(12)
+ssf_transitional_500 <- true.random.steps1 %>% extract_covariates(MWA_transitional_500_scaled) %>%
+  dplyr::select(12)
+ssf_urban_500 <- true.random.steps1 %>% extract_covariates(MWA_urban_500_scaled) %>%
+  dplyr::select(12)
+ssf_aspect_500 <- true.random.steps1 %>% extract_covariates(MWA_aspect_500_scaled) %>%
+  dplyr::select(12)
+ssf_slope_500 <- true.random.steps1 %>% extract_covariates(MWA_slope_500_scaled) %>%
+  dplyr::select(12)
+  
+#Bind the columns together with the main dataframe
+ssf1 <-  cbind(true.random.steps1,ssf_TRI_33,ssf_TRI_50,ssf_broad_2000,ssf_mixed_2000,ssf_ngrass_2000,ssf_hmgrass_2000,ssf_transitional_2000,ssf_urban_2000,ssf_aspect_2000,ssf_broad_1000,ssf_mixed_1000,ssf_ngrass_1000,ssf_hmgrass_1000,ssf_transitional_1000,ssf_urban_1000,ssf_aspect_1000,ssf_broad_500,ssf_mixed_500,ssf_ngrass_500,ssf_hmgrass_500,ssf_transitional_500,ssf_urban_500,ssf_aspect_500,ssf_slope_500)
+```
+Fit the SSFs for PU MWA 2km,1km and 500m
+```{r}
+mod2000 <- fit_clogit(case_ ~ strata(step_id_) + TRI_50_radius + broad.forest_2000m + MWA.mixed.forest_2000m + MWA.natgrassland_2000m + MWA.hmgrassland_reclassified_2000m + MWA.transitional_reclassified_2000m + MWA.urban_reclassified_2000m + MWA.aspect_2000m + scale(sl_), method = 'approximate', data = ssf1)
+
+mod1000 <- fit_clogit(case_ ~ strata(step_id_) + TRI_33_30m + broad.forest_1000m + MWA.mixed.forest_1000m + MWA.natgrassland_1000m_new + MWA.hmgrassland_reclassified_1000m + MWA.transitional_reclassified_1000m_new + MWA.urban_reclassified_1000m + MWA.aspect_1000m + scale(sl_), method = 'approximate', data = ssf1)
+
+mod500 <- fit_clogit(case_ ~ strata(step_id_) + TRI_33_30m + broad.forest_500m + MWA.mixed.forest_500m + MWA.natgrassland_500m + MWA.hmgrassland_reclassified_500m + MWA.transitional_reclassified_500m + MWA.urban_reclassified_500m + MWA.aspect_500m + scale(sl_), method = 'approximate', data = ssf1)
+
+summary(mod2000)
+summary(mod1000)
+summary(mod500)
+```
+Model comparison
+```{r AIC}
+AIC2000 <- AIC(mod2000)
+AIC1000 <- AIC(mod1000)
+AIC500 <- AIC(mod500)
+
+# Compare the AIC values to determine the best model
+model_names <- c("MWA 2000", "MWA 1000", "MWA 500")
+aic_values <- c(AIC2000, AIC1000, AIC500)
+
+#Create a df to display and compare the AIC values
+model_comparison <- data.frame(Model = model_names, AIC = aic_values)
+print(model_comparison)
+#MWA 500 is the best model
+```
+SSF with multiple animals
+```{r}
+library(purrr)
+library(sf)
+#Change the class of the timestamp
+filtered_data$t <- as.POSIXct(filtered_data$t, format = "%Y-%m-%d %H:%M:%S")
+class(filtered_data$t)
+#subset
+filtered_data_tracks <- filtered_data %>%
+dplyr::select(x = longitude, y = latitude,
+t = t, id = Collar.ID)
+#remove NAs
+filtered_data_tracks <-na.omit(filtered_data_tracks)
+
+#nest by id
+nested <- 
+  filtered_data_tracks %>% 
+  nest(data = c(-id)) %>% 
+  mutate(track = purrr::map(data, ~ mk_track(., x, y, t, crs = st_crs(32635))))
+
+names(nested)
+```
+Step lengths
+```{r Step lengths}
+step.lengths <- unlist(map(nested$track, step_lengths))
+hist(step.lengths, breaks = 20, main="Histogram of step lengths", xlab="Step lengths")
+```
+Check sampling rate
+```{r}
+map(nested$track, summarize_sampling_rate)
+```
+Create steps from points 
+This object is a list of data frames (actually tibbles) that has coordinates of start and end points for each stetp, as well as step lengths and turning angles (in degrees, from -180 to 180).
+```{r}
+true.steps <- map(nested$track, steps)
+head(true.steps[[1]])
+```
+Create random steps
+Generating 5 random steps per used step.
+.id="id" creates a new column with the id of the list so we can still separate data by animal.
+```{r}
+true.random.steps <- map(true.steps, random_steps, n=5)
+all.steps <- bind_rows(true.random.steps, .id="id")
+all.steps
+```
+distribution of turning angles for used steps only
+```{r}
+with(all.steps, hist(ta_[case_==T], breaks=20, main = "Histogram of turning angles", xlab="turning angle"))
+```
+"Unfortunately, by using the nested data frame, we’ve lost our projection information, which we need to extract points from the habitat covariate data. We’ll just convert to a SpatialPointsDataFrame so we can project it."
+```{r}
+steps.sp <- all.steps
+#remove NA
+steps.sp <- na.omit(steps.sp)
+coordinates(steps.sp) <- ~x2_+y2_
+proj4string(steps.sp) <- CRS("+proj=utm +zone=35 +datum=WGS84 +units=m +no_defs")
+```
+Extract habitat covariate data
+```{r}
+covariates_TRI_33 <- raster::extract(TRI_33_scaled, steps.sp)
+covariates_TRI_50 <- raster::extract(TRI_50_scaled, steps.sp)
+covariates_broad_2000 <- raster::extract(MWA_broad_2000_scaled, steps.sp)
+covariates_mixed_2000 <- raster::extract(MWA_mixed_2000_scaled, steps.sp)
+covariates_ngrass_2000 <- raster::extract(MWA_ngrass_2000_scaled, steps.sp)
+covariates_hm_grass_2000 <- raster::extract(MWA_hmgrass_2000_scaled, steps.sp)
+covariates_transitional_2000 <- raster::extract(MWA_transitional_2000_scaled, steps.sp)
+covariates_urban_2000 <- raster::extract(MWA_urban_2000_scaled, steps.sp)
+covariates_aspect_2000 <- raster::extract(MWA_aspect_2000_scaled, steps.sp)
+covariates_broad_1000 <- raster::extract(MWA_broad_1000_scaled, steps.sp)
+covariates_mixed_1000 <- raster::extract(MWA_mixed_1000_scaled, steps.sp)
+covariates_ngrass_1000 <- raster::extract(MWA_ngrass_1000_scaled, steps.sp)
+covariates_hm_grass_1000 <- raster::extract(MWA_hmgrass_1000_scaled, steps.sp)
+covariates_transitional_1000 <- raster::extract(MWA_transitional_1000_scaled, steps.sp)
+covariates_urban_1000 <- raster::extract(MWA_urban_1000_scaled, steps.sp)
+covariates_aspect_1000 <- raster::extract(MWA_aspect_1000_scaled, steps.sp)
+covariates_broad_500 <- raster::extract(MWA_broad_500_scaled, steps.sp)
+covariates_mixed_500 <- raster::extract(MWA_mixed_500_scaled, steps.sp)
+covariates_ngrass_500 <- raster::extract(MWA_ngrass_500_scaled, steps.sp)
+covariates_hm_grass_500 <- raster::extract(MWA_hmgrass_500_scaled, steps.sp)
+covariates_transitional_500 <- raster::extract(MWA_transitional_500_scaled, steps.sp)
+covariates_urban_500 <- raster::extract(MWA_urban_500_scaled, steps.sp)
+covariates_aspect_500 <- raster::extract(MWA_aspect_500_scaled, steps.sp)
+
+covariates <- cbind(covariates_TRI_33,covariates_TRI_50,covariates_broad_2000,covariates_mixed_2000,covariates_ngrass_2000,covariates_hm_grass_2000,covariates_transitional_2000,covariates_urban_2000,covariates_aspect_2000,covariates_broad_1000,covariates_mixed_1000,covariates_ngrass_1000,covariates_hm_grass_1000,covariates_transitional_1000,covariates_urban_1000,covariates_aspect_1000,covariates_broad_500,covariates_mixed_500,covariates_ngrass_500,covariates_hm_grass_500,covariates_transitional_500,covariates_urban_500,covariates_aspect_500)
+```
+add the covariate data to our SpatialPointsDataFrame of used and random steps
+```{r}
+steps.sp$covariates_TRI_33 <- covariates[,1]
+steps.sp$covariates_TRI_50 <- covariates[,2]
+steps.sp$covariates_broad_2000 <- covariates[,3]
+steps.sp$covariates_mixed_2000 <- covariates[,4]
+steps.sp$covariates_ngrass_2000 <- covariates[,5]
+steps.sp$covariates_hm_grass_2000 <- covariates[,6]
+steps.sp$covariates_transitional_2000 <- covariates[,7]
+steps.sp$covariates_urban_2000 <- covariates[,8]
+steps.sp$covariates_aspect_2000 <- covariates[,9]
+steps.sp$covariates_broad_1000 <- covariates[,10]
+steps.sp$covariates_mixed_1000 <- covariates[,11]
+steps.sp$covariates_ngrass_1000 <- covariates[,12]
+steps.sp$covariates_hm_grass_1000 <- covariates[,13]
+steps.sp$covariates_transitional_1000 <- covariates[,14]
+steps.sp$covariates_urban_1000 <- covariates[,15]
+steps.sp$covariates_aspect_1000 <- covariates[,16]
+steps.sp$covariates_broad_500 <- covariates[,17]
+steps.sp$covariates_mixed_500 <- covariates[,18]
+steps.sp$covariates_ngrass_500 <- covariates[,19]
+steps.sp$covariates_hm_grass_500 <- covariates[,20]
+steps.sp$covariates_transitional_500 <- covariates[,21]
+steps.sp$covariates_urban_500 <- covariates[,22]
+steps.sp$covariates_aspect_500 <- covariates[,23]
+head(steps.sp)
+```
+Comparing aspect 2000 of used (true) vesus random (false) points
+```{r}
+boxplot(covariates_aspect_2000 ~ case_, data = steps.sp, ylab="Aspect 2km window")
+```
+SSFs
+```{r}
+library(mclogit)
+mod2km <- fit_clogit(case_ ~ strata(step_id_) + covariates_TRI_50 + covariates_broad_2000 + covariates_mixed_2000 + covariates_ngrass_2000 + covariates_hm_grass_2000 + covariates_transitional_2000 + covariates_urban_2000 + covariates_aspect_2000 + scale(sl_), method = 'approximate', data = steps.sp)
+mod1km <- fit_clogit(case_ ~ strata(step_id_) + covariates_TRI_33 + covariates_broad_1000 + covariates_mixed_1000 + covariates_ngrass_1000 + covariates_hm_grass_1000 + covariates_transitional_1000 + covariates_urban_1000 + covariates_aspect_1000 + scale(sl_), method = 'approximate', data = steps.sp)
+mod500m <- fit_clogit(case_ ~ strata(step_id_) + covariates_TRI_33 + covariates_broad_500 + covariates_mixed_500 + covariates_ngrass_500 + covariates_hm_grass_500 + covariates_transitional_500 + covariates_urban_500 + covariates_aspect_500 + scale(sl_), method = 'approximate', data = steps.sp)
+
+summary(mod2km)
+summary(mod1km)
+summary(mod500m)
+```
+Model Comparison
+```{r}
+AIC2km <- AIC(mod2km)
+AIC1km <- AIC(mod1km)
+AIC500m <- AIC(mod500m)
+
+# Compare the AIC values to determine the best model
+model_names <- c("MWA 2000", "MWA 1000", "MWA 500")
+aic_values <- c(AIC2km, AIC1km, AIC500m)
+
+#Create a df to display and compare the AIC values
+model_comparison <- data.frame(Model = model_names, AIC = aic_values)
+print(model_comparison)
+#MWA 2000 is the best model 
+library(sjPlot)
+plot_model(mod2km, title="SSF MWA 2km Coefficients")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
